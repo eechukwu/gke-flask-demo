@@ -16,16 +16,22 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 🔐 Reuse GCP login + optional Docker config
+      # ✅ 1) Checkout the repo so local actions and code are available
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # 🔐 2) Reuse GCP login + Docker config
       - name: GCP login + Docker auth
         uses: ./.github/actions/gcp-login
         with:
           service-account-key: ${{ secrets.GCP_SA_KEY }}
           configure-docker: "true"
 
+      # 3) Buildx for multi-arch (we use linux/amd64 for GKE)
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # 4) Build and push the image
       - name: Build and push image
         run: |
           # Immutable tag based on commit SHA
