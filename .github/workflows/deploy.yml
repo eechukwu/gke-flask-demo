@@ -3,9 +3,7 @@ name: Build and Deploy Flask App to GKE
 on:
   push:
     branches:
-      - main       # build + deploy dev on main
-    tags:
-      - 'v*'       # build + deploy dev+prod on tags like v0.1.0
+      - main       # build + deploy dev/prod on main
   workflow_dispatch:
 
 jobs:
@@ -64,10 +62,8 @@ jobs:
     # 🔗 Wait for image build to succeed
     needs: build-and-push
 
-    # Run for:
-    # - pushes to main
-    # - pushes to tags v* (so tag releases also go through dev)
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    # Only for pushes to main
+    if: github.ref == 'refs/heads/main'
 
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
@@ -132,8 +128,8 @@ jobs:
     # 🔗 Only run after dev deploy finishes
     needs: deploy-dev
 
-    # Only for tag pushes like v0.1.0
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 🔗 Same main branch run
+    if: github.ref == 'refs/heads/main'
 
     # Attach to prod environment for manual approval
     environment:
@@ -141,7 +137,7 @@ jobs:
 
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GKE_CLUSTER: ${{ secrets/GKE_CLUSTER_NAME }}
+      GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
       GKE_ZONE: ${{ secrets.GKE_ZONE }}
       AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
       IMAGE_NAME: "flask-gke-demo"
