@@ -1,0 +1,30 @@
+name: GCP Login Test
+
+on:
+  # We only run this manually from the GitHub UI
+  workflow_dispatch:
+
+env:
+  # PROJECT_ID will be used by the gcp-login composite action
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+
+jobs:
+  gcp-login:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Reuse our shared login logic
+      - name: GCP login (composite action)
+        uses: ./.github/actions/gcp-login
+        with:
+          service-account-key: ${{ secrets.GCP_SA_KEY }}
+          configure-docker: "false"
+
+      # Just print who we are logged in as and which project is active
+      - name: Show active account and project
+        run: |
+          echo "Active account:"
+          gcloud auth list
+
+          echo "Current project:"
+          gcloud config get-value project

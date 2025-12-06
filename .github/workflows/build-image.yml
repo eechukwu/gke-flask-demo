@@ -1,0 +1,44 @@
+name: Build Flask Image for GKE
+
+on:
+  push:
+    branches:
+      - main           # build image on every push to main
+  workflow_dispatch:   # allow manual runs too
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
+  IMAGE_NAME: "flask-gke-demo"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 🔐 Reuse GCP login + optional Docker config
+      - name: GCP login + Docker auth
+        uses: ./.github/actions/gcp-login
+        with:
+          service-account-key: ${{ secrets.GCP_SA_KEY }}
+          configure-docker: "true"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        run: |
+          # Immutable tag based on commit SHA
+          IMAGE_TAG_SHA="${AR_REPO}/${IMAGE_NAME}:${GITHUB_SHA}"
+
+          # Moving tag for "latest" (always the newest build)
+          IMAGE_TAG_LATEST="${AR_REPO}/${IMAGE_NAME}:latest"
+
+          echo "Building image: $IMAGE_TAG_SHA"
+          echo "Also tagging:  $IMAGE_TAG_LATEST"
+
+          docker buildx build \
+            --platform linux/amd64 \
+            -t "$IMAGE_TAG_SHA" \
+            -t "$IMAGE_TAG_LATEST" \
+            --push .
