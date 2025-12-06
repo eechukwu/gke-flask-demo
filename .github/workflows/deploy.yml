@@ -128,7 +128,7 @@ jobs:
     # 🔗 Only run after dev deploy finishes
     needs: deploy-dev
 
-    # 🔗 Same main branch run
+    # Same main branch run
     if: github.ref == 'refs/heads/main'
 
     # Attach to prod environment for manual approval
@@ -137,8 +137,8 @@ jobs:
 
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
-      GKE_ZONE: ${{ secrets.GKE_ZONE }}
+      GKE_CLUSTER: ${{ secrets/GKE_CLUSTER_NAME }}
+      GKE_ZONE: ${{ secrets/GKE_ZONE }}
       AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
       IMAGE_NAME: "flask-gke-demo"
       K8S_NAMESPACE: "prod"
