@@ -4,7 +4,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def hello():
-    return "🎊 SATURDAY NIGHT DEPLOY 🎊 Flask on GKE 3 | Powered by Reusable Pipelines 🔄"
+    return "🎊 SATURDAY NIGHT DEPLOY 🎊 Flask on GKE 4 | Powered by Reusable Pipelines 🔄"
 
 @app.route("/healthz")
 def healthz():
