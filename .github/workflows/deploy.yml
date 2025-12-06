@@ -1,24 +1,70 @@
-name: Deploy Flask App to GKE
+name: Build and Deploy Flask App to GKE
 
 on:
   push:
     branches:
-      - main       # deploy to dev on main push
-    tags:
-      - 'v*'       # deploy to prod on tags like v0.1.0
+      - main       # build + deploy dev/prod on main
   workflow_dispatch:
 
 jobs:
-  # -------------------
-  # Deploy to DEV
-  # -------------------
+  # ============================
+  # 1) Build & push Docker image
+  # ============================
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
+      IMAGE_NAME: "flask-gke-demo"
+
+    steps:
+      # 1) Checkout repo
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # 2) GCP login + Docker auth (reusing composite action)
+      - name: GCP login + Docker auth
+        uses: ./.github/actions/gcp-login
+        with:
+          service-account-key: ${{ secrets.GCP_SA_KEY }}
+          configure-docker: "true"
+
+      # 3) Buildx for linux/amd64 (GKE nodes)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 4) Build and push image (SHA + latest tags)
+      - name: Build and push image
+        run: |
+          IMAGE_TAG_SHA="${AR_REPO}/${IMAGE_NAME}:${GITHUB_SHA}"
+          IMAGE_TAG_LATEST="${AR_REPO}/${IMAGE_NAME}:latest"
+
+          echo "IMAGE_TAG_SHA=$IMAGE_TAG_SHA"
+          echo "IMAGE_TAG_LATEST=$IMAGE_TAG_LATEST"
+
+          # Save tags for downstream jobs (if we ever want them)
+          echo "IMAGE_TAG_SHA=$IMAGE_TAG_SHA" >> $GITHUB_ENV
+          echo "IMAGE_TAG_LATEST=$IMAGE_TAG_LATEST" >> $GITHUB_ENV
+
+          docker buildx build \
+            --platform linux/amd64 \
+            -t "$IMAGE_TAG_SHA" \
+            -t "$IMAGE_TAG_LATEST" \
+            --push .
+
+  # ============================
+  # 2) Deploy to DEV (auto)
+  # ============================
   deploy-dev:
     runs-on: ubuntu-latest
 
-    # Only when pushing to main (not tags)
+    # 🔗 Wait for image build to succeed
+    needs: build-and-push
+
+    # Only for pushes to main
     if: github.ref == 'refs/heads/main'
 
-    # Job-level env so we can safely use secrets
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
@@ -28,24 +74,20 @@ jobs:
       K8S_NAMESPACE: "dev"
 
     steps:
-      # ✅ 1) Checkout so local action + k8s manifests are available
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 🔐 2) Reuse shared GCP login (no Docker config needed)
-      - name: GCP login
+      - name: GCP login (no Docker needed)
         uses: ./.github/actions/gcp-login
         with:
           service-account-key: ${{ secrets.GCP_SA_KEY }}
           configure-docker: "false"
 
-      # 3) Get kubeconfig for the GKE cluster
       - name: Get GKE credentials
         run: |
           gcloud container clusters get-credentials "$GKE_CLUSTER" \
             --zone "$GKE_ZONE"
 
-      # 4) Apply manifests into dev namespace
       - name: Apply Kubernetes manifests to dev
         run: |
           # Namespace (idempotent)
@@ -63,7 +105,6 @@ jobs:
           kubectl apply -n "$K8S_NAMESPACE" -f k8s/hpa.yaml
           kubectl apply -n "$K8S_NAMESPACE" -f k8s/vpa.yaml || echo "VPA apply failed – continuing."
 
-      # 5) Point the Deployment at the latest image
       - name: Update deployment image (dev)
         run: |
           IMAGE_TAG="${AR_REPO}/${IMAGE_NAME}:latest"
@@ -72,27 +113,28 @@ jobs:
             flask-gke-demo="$IMAGE_TAG" \
             --namespace="$K8S_NAMESPACE"
 
-      # 6) Block until rollout finishes (or fails)
       - name: Check rollout status (dev)
         run: |
           kubectl rollout status deployment/flask-gke-demo \
             --namespace="$K8S_NAMESPACE" \
             --timeout=180s
 
-  # -------------------
-  # Deploy to PROD
-  # -------------------
+  # ============================
+  # 3) Deploy to PROD (manual-gated)
+  # ============================
   deploy-prod:
     runs-on: ubuntu-latest
 
-    # Only when pushing tags like v0.1.0
-    if: startsWith(github.ref, 'refs/tags/v')
+    # 🔗 Only run after dev deploy finishes
+    needs: deploy-dev
 
-    # Attach to GitHub Environment "prod" for manual approval
+    # 🔗 Same main branch run
+    if: github.ref == 'refs/heads/main'
+
+    # Attach to prod environment for manual approval
     environment:
       name: prod
 
-    # Job-level env with secrets + prod namespace
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
@@ -102,24 +144,20 @@ jobs:
       K8S_NAMESPACE: "prod"
 
     steps:
-      # ✅ 1) Checkout so local action + k8s manifests are available
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # 🔐 2) Reuse shared GCP login
-      - name: GCP login
+      - name: GCP login (no Docker)
         uses: ./.github/actions/gcp-login
         with:
           service-account-key: ${{ secrets.GCP_SA_KEY }}
           configure-docker: "false"
 
-      # 3) Get kubeconfig for the GKE cluster
       - name: Get GKE credentials
         run: |
           gcloud container clusters get-credentials "$GKE_CLUSTER" \
             --zone "$GKE_ZONE"
 
-      # 4) Apply manifests into prod namespace
       - name: Apply Kubernetes manifests to prod
         run: |
           # Namespace
@@ -137,7 +175,6 @@ jobs:
           kubectl apply -n "$K8S_NAMESPACE" -f k8s/hpa.yaml
           kubectl apply -n "$K8S_NAMESPACE" -f k8s/vpa.yaml || echo "VPA apply failed – continuing."
 
-      # 5) Point the Deployment at the latest image
       - name: Update deployment image (prod)
         run: |
           IMAGE_TAG="${AR_REPO}/${IMAGE_NAME}:latest"
@@ -146,7 +183,6 @@ jobs:
             flask-gke-demo="$IMAGE_TAG" \
             --namespace="$K8S_NAMESPACE"
 
-      # 6) Block until rollout finishes (or fails)
       - name: Check rollout status (prod)
         run: |
           kubectl rollout status deployment/flask-gke-demo \
