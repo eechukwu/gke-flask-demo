@@ -1,0 +1,58 @@
+name: Deploy to DEV
+
+on:
+  workflow_run:
+    workflows: ["Build and Push Docker Image"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy-dev:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+
+    env:
+      GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+      GKE_ZONE: ${{ secrets.GKE_ZONE }}
+      AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
+      IMAGE_NAME: "flask-gke-demo"
+      K8S_NAMESPACE: "dev"
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: GCP login
+        uses: ./.github/actions/gcp-login
+        with:
+          service-account-key: ${{ secrets.GCP_SA_KEY }}
+          configure-docker: "false"
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
+
+      - name: Deploy to dev
+        run: |
+          kubectl apply -f k8s/namespace-dev.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/configmap.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/secret.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/deployment.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/service.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/hpa.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/vpa.yaml || echo "VPA apply failed – continuing."
+
+      - name: Update deployment image
+        run: |
+          kubectl set image deployment/flask-gke-demo \
+            flask-gke-demo="${AR_REPO}/${IMAGE_NAME}:latest" \
+            -n "$K8S_NAMESPACE"
+
+      - name: Check rollout status
+        run: |
+          kubectl rollout status deployment/flask-gke-demo -n "$K8S_NAMESPACE" --timeout=180s
