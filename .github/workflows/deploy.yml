@@ -8,17 +8,6 @@ on:
       - 'v*'       # deploy to prod on tags like v0.1.0
   workflow_dispatch:
 
-env:
-  PROJECT_ID: ${{ secrets/GCP_PROJECT_ID }}
-  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
-  GKE_ZONE: ${{ secrets.GKE_ZONE }}
-
-  AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
-  IMAGE_NAME: "flask-gke-demo"
-
-  K8S_NAMESPACE_DEV: "dev"
-  K8S_NAMESPACE_PROD: "prod"
-
 jobs:
   # -------------------
   # Deploy to DEV
@@ -28,6 +17,15 @@ jobs:
 
     # Only when pushing to main (not tags)
     if: github.ref == 'refs/heads/main'
+
+    # Job-level env so we can use secrets safely
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GKE_CLUSTER: ${{ secrets.GCP_CLUSTER_NAME }}
+      GKE_ZONE: ${{ secrets.GCP_ZONE }}
+      AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
+      IMAGE_NAME: "flask-gke-demo"
+      K8S_NAMESPACE: "dev"
 
     steps:
       # ✅ 1) Checkout so local action + k8s manifests are available
@@ -49,10 +47,8 @@ jobs:
 
       # 4) Apply manifests into dev namespace
       - name: Apply Kubernetes manifests to dev
-        env:
-          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_DEV }}
         run: |
-          # Namespace
+          # Namespace (idempotent)
           kubectl apply -f k8s/namespace-dev.yaml
 
           # Config & secrets
@@ -69,8 +65,6 @@ jobs:
 
       # 5) Point the Deployment at the latest image
       - name: Update deployment image (dev)
-        env:
-          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_DEV }}
         run: |
           IMAGE_TAG="${AR_REPO}/${IMAGE_NAME}:latest"
 
@@ -80,8 +74,6 @@ jobs:
 
       # 6) Block until rollout finishes (or fails)
       - name: Check rollout status (dev)
-        env:
-          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_DEV }}
         run: |
           kubectl rollout status deployment/flask-gke-demo \
             --namespace="$K8S_NAMESPACE" \
@@ -99,6 +91,15 @@ jobs:
     # Attach to GitHub Environment "prod" for manual approval
     environment:
       name: prod
+
+    # Job-level env with secrets + prod namespace
+    env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+      GKE_CLUSTER: ${{ secrets.GCP_CLUSTER_NAME }}
+      GKE_ZONE: ${{ secrets.GCP_ZONE }}
+      AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
+      IMAGE_NAME: "flask-gke-demo"
+      K8S_NAMESPACE: "prod"
 
     steps:
       # ✅ 1) Checkout so local action + k8s manifests are available
@@ -120,8 +121,6 @@ jobs:
 
       # 4) Apply manifests into prod namespace
       - name: Apply Kubernetes manifests to prod
-        env:
-          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_PROD }}
         run: |
           # Namespace
           kubectl apply -f k8s/namespace-prod.yaml
@@ -140,8 +139,6 @@ jobs:
 
       # 5) Point the Deployment at the latest image
       - name: Update deployment image (prod)
-        env:
-          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_PROD }}
         run: |
           IMAGE_TAG="${AR_REPO}/${IMAGE_NAME}:latest"
 
@@ -151,8 +148,6 @@ jobs:
 
       # 6) Block until rollout finishes (or fails)
       - name: Check rollout status (prod)
-        env:
-          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_PROD }}
         run: |
           kubectl rollout status deployment/flask-gke-demo \
             --namespace="$K8S_NAMESPACE" \
