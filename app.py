@@ -4,7 +4,7 @@ app = Flask(__name__)
 
 @app.route("/")
 def hello():
-    return "Hello from Flask on GKE 3. Reusable pipeline!"
+    return "Hello from Flask on GKE 3. Reusable pipeline Saturday Night!"
 
 @app.route("/healthz")
 def healthz():
