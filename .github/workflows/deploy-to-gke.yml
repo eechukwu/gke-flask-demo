@@ -74,7 +74,7 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
           # Build and push the image for linux/amd64 (architecture used by GKE nodes)
-          docker buildx.build \
+          docker buildx build \
             --platform linux/amd64 \
             -t "$IMAGE_TAG" \
             --push .
