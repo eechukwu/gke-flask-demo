@@ -18,6 +18,7 @@ jobs:
       name: prod
 
     env:
+      PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
       GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
       GKE_ZONE: ${{ secrets.GKE_ZONE }}
       AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
@@ -40,7 +41,7 @@ jobs:
         run: |
           gcloud container clusters get-credentials "$GKE_CLUSTER" --zone "$GKE_ZONE"
 
-      - name: Deploy to prod
+      - name: Apply Kubernetes manifests
         run: |
           kubectl apply -f k8s/namespace-prod.yaml
           kubectl apply -n "$K8S_NAMESPACE" -f k8s/configmap.yaml
