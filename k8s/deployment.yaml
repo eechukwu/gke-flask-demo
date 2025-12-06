@@ -18,6 +18,7 @@ spec:
   selector:
     matchLabels:
       app: flask-gke-demo
+
   template:
     metadata:
       labels:
@@ -36,9 +37,9 @@ spec:
           # ✅ Load config + secrets as environment variables
           envFrom:
             - configMapRef:
-                name: flask-config      # adjust if your ConfigMap has a different name
+                name: flask-config      # ConfigMap
             - secretRef:
-                name: flask-secret      # adjust if your Secret has a different name
+                name: flask-secrets     # 🔧 FIXED: must match the real Secret name
 
           # ✅ Also mount the secret as files (for things like certs, keys)
           volumeMounts:
@@ -51,16 +52,16 @@ spec:
             httpGet:
               path: /healthz
               port: 8080
-            initialDelaySeconds: 10    # wait 10s before first liveness check
-            periodSeconds: 10          # check every 10s
-            failureThreshold: 3        # 3 failed checks => restart the container
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
 
           # K8s uses this to decide when the pod is ready to receive traffic
           readinessProbe:
             httpGet:
               path: /healthz
               port: 8080
-            initialDelaySeconds: 5     # become ready slightly sooner than liveness
+            initialDelaySeconds: 5
             periodSeconds: 5
             failureThreshold: 3
 
@@ -77,4 +78,4 @@ spec:
       volumes:
         - name: flask-secret-volume
           secret:
-            secretName: flask-secrets     # must match the Secret name
+            secretName: flask-secrets   # this already matched

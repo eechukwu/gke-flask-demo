@@ -1,0 +1,29 @@
+# ------------------------------------------------------------
+# TEST POD USING THE READ-ONLY SERVICE ACCOUNT
+# ------------------------------------------------------------
+# This pod runs a long "sleep" and uses:
+#   spec.serviceAccountName: readonly-sa
+#
+# We can:
+#   - kubectl exec into it
+#   - run kubectl commands (if image has kubectl), or curl the API
+#   - demonstrate that it can read but not modify resources
+# ------------------------------------------------------------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  # Name of the test pod
+  name: rbac-readonly-test
+  labels:
+    # Simple label for identification
+    app: rbac-readonly-test
+spec:
+  # Use the read-only ServiceAccount defined in rbac-readonly.yaml
+  serviceAccountName: readonly-sa
+  containers:
+    - name: kubectl
+      # Lightweight image that contains kubectl
+      image: bitnami/kubectl:latest
+      # Sleep for 1 hour so we can exec into the pod and test
+      command: ["sleep", "3600"]
