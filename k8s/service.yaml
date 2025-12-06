@@ -7,5 +7,6 @@ spec:
   selector:
     app: flask-gke-demo
   ports:
-    - port: 80
+    - name: http
+      port: 8089
       targetPort: 8080

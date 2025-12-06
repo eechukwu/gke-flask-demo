@@ -10,8 +10,8 @@ spec:
     name: flask-gke-demo
 
   # Min and max replicas for the Deployment
-  minReplicas: 2
-  maxReplicas: 5
+  minReplicas: 1
+  maxReplicas: 2
 
   # Scale based on average CPU utilization across pods
   metrics:
