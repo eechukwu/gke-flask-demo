@@ -46,8 +46,8 @@ spec:
           # Resource requests/limits for scheduling and protection
           resources:
             requests:
-              cpu: "100m"      # reserve 0.1 vCPU
-              memory: "128Mi"  # reserve 128MiB RAM
+              cpu: "50m"      # reserve 0.1 vCPU
+              memory: "64Mi"  # reserve 128MiB RAM
             limits:
-              cpu: "500m"      # cap at 0.5 vCPU
-              memory: "256Mi"  # cap at 256MiB RAM
+              cpu: "100m"      # cap at 0.5 vCPU
+              memory: "128Mi"  # cap at 256MiB RAM
