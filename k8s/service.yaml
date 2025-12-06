@@ -3,7 +3,7 @@ kind: Service
 metadata:
   name: flask-gke-demo-svc
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   selector:
     app: flask-gke-demo
   ports:
