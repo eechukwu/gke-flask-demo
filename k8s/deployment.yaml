@@ -5,8 +5,16 @@ metadata:
   labels:
     app: flask-gke-demo
 spec:
-  # We run 2 replicas so we can see rolling updates & basic scaling
+  # We run 1 replica now (HPA will scale this up under load)
   replicas: 1
+
+  # 🔁 Explicit rolling update strategy for safer, zero-downtime deploys
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1        # allow 1 extra pod above desired during rollout
+      maxUnavailable: 0  # never take a pod down until a new one is ready
+
   selector:
     matchLabels:
       app: flask-gke-demo
@@ -24,6 +32,19 @@ spec:
           # The Flask app listens on port 8080
           ports:
             - containerPort: 8080
+
+          # ✅ Load config + secrets as environment variables
+          envFrom:
+            - configMapRef:
+                name: flask-config      # adjust if your ConfigMap has a different name
+            - secretRef:
+                name: flask-secret      # adjust if your Secret has a different name
+
+          # ✅ Also mount the secret as files (for things like certs, keys)
+          volumeMounts:
+            - name: flask-secret-volume
+              mountPath: /var/run/secrets/flask
+              readOnly: true
 
           # K8s uses this to decide when the container is "alive" or needs a restart
           livenessProbe:
@@ -46,8 +67,14 @@ spec:
           # Resource requests/limits for scheduling and protection
           resources:
             requests:
-              cpu: "50m"      # reserve 0.1 vCPU
-              memory: "64Mi"  # reserve 128MiB RAM
+              cpu: "50m"       # reserve 0.05 vCPU
+              memory: "64Mi"   # reserve 64MiB RAM
             limits:
-              cpu: "100m"      # cap at 0.5 vCPU
-              memory: "128Mi"  # cap at 256MiB RAM
+              cpu: "100m"      # cap at 0.1 vCPU
+              memory: "128Mi"  # cap at 128MiB RAM
+
+      # 📦 Define the secret volume (backed by the Secret)
+      volumes:
+        - name: flask-secret-volume
+          secret:
+            secretName: flask-secret     # must match the Secret name
