@@ -6,7 +6,7 @@ metadata:
     app: flask-gke-demo
 spec:
   # We run 2 replicas so we can see rolling updates & basic scaling
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: flask-gke-demo
