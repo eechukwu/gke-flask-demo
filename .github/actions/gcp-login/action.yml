@@ -1,45 +1,46 @@
-name: "GCP Login"
-description: "Authenticate to GCP using a service account and optionally configure Docker for Artifact Registry"
+name: GCP Login
+description: "Authenticate to GCP with a service account and optionally configure Docker for Artifact Registry"
 
 inputs:
   service-account-key:
-    description: "JSON service account key"
+    description: "JSON key for the GCP service account"
     required: true
   configure-docker:
-    description: "Set to true to configure Docker for Artifact Registry"
+    description: "If 'true', configure Docker auth for Artifact Registry"
     required: false
     default: "false"
 
 runs:
   using: "composite"
   steps:
-    # We checkout the repo so kubectl/manifests are available if needed
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    # Install gcloud CLI in the runner
-    - name: Set up gcloud CLI
+    # 1) Install gcloud + GKE auth plugin
+    - name: Install gcloud CLI and GKE auth plugin
+    # This action installs the gcloud SDK and the gke-gcloud-auth-plugin component
       uses: google-github-actions/setup-gcloud@v2
       with:
-        # PROJECT_ID will be passed via env from the calling workflow
         project_id: ${{ env.PROJECT_ID }}
-        export_default_credentials: false
+        install_components: gke-gcloud-auth-plugin
 
-    # Log in to GCP using the service account
-    - name: Authenticate to GCP
+    # 2) Activate the service account and set the project
+    - name: Activate service account & set project
       shell: bash
+      env:
+        PROJECT_ID: ${{ env.PROJECT_ID }}
       run: |
         # Write the JSON key into a temp file
         echo '${{ inputs.service-account-key }}' > /tmp/gcp-key.json
 
-        # Activate the service account
+        # Authenticate as the service account
         gcloud auth activate-service-account \
           --key-file=/tmp/gcp-key.json
 
-        # Set the project so all gcloud commands know where to work
+        # Set the default project for all subsequent gcloud/kubectl commands
         gcloud config set project "$PROJECT_ID"
 
-    # Optionally configure Docker to push to Artifact Registry
+        # Tell kubectl to use the new GKE auth plugin
+        echo "USE_GKE_GCLOUD_AUTH_PLUGIN=True" >> "$GITHUB_ENV"
+
+    # 3) Optionally configure Docker for Artifact Registry
     - name: Configure Docker for Artifact Registry (optional)
       if: inputs.configure-docker == 'true'
       shell: bash
