@@ -1,0 +1,21 @@
+# ------------------------------------------------------------
+# CLIENT POD (BLOCKED)
+# ------------------------------------------------------------
+# This pod has label access=blocked.
+# The NetworkPolicy only allows access=allowed, so this pod
+# SHOULD NOT be able to reach the Flask app.
+# ------------------------------------------------------------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netpol-client-blocked
+  labels:
+    app: netpol-client-blocked
+    # Not allowed by the NetworkPolicy
+    access: blocked
+spec:
+  containers:
+    - name: curl
+      image: curlimages/curl:8.10.1
+      command: ["sleep", "3600"]

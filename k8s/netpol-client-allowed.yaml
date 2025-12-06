@@ -1,0 +1,24 @@
+# ------------------------------------------------------------
+# CLIENT POD (ALLOWED)
+# ------------------------------------------------------------
+# This pod has the label access=allowed, so according to
+# the NetworkPolicy, it CAN talk to the Flask app on port 8080.
+#
+# We’ll exec into it and curl the Service.
+# ------------------------------------------------------------
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: netpol-client-allowed
+  labels:
+    app: netpol-client-allowed
+    # This label is what the NetworkPolicy checks
+    access: allowed
+spec:
+  containers:
+    - name: curl
+      # Tiny image that has curl
+      image: curlimages/curl:8.10.1
+      # Sleep so we have time to exec into it
+      command: ["sleep", "3600"]

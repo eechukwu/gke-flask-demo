@@ -1,0 +1,77 @@
+# ------------------------------------------------------------
+# RBAC: READ-ONLY ACCESS FOR A SERVICE ACCOUNT
+# ------------------------------------------------------------
+# This file defines three objects in the *current namespace*:
+#   1) ServiceAccount: "readonly-sa"
+#   2) Role: "readonly-role"       (read-only permissions)
+#   3) RoleBinding: "readonly-binding" (binds SA to Role)
+#
+# We will:
+#   - Apply this file to dev:  kubectl apply -n dev  -f rbac-readonly.yaml
+#   - Apply this file to prod: kubectl apply -n prod -f rbac-readonly.yaml
+# ------------------------------------------------------------
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  # Name of the ServiceAccount to use for read-only operations
+  name: readonly-sa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  # Name of the Role that defines what this SA can do
+  name: readonly-role
+rules:
+  # ---- Core resources in the "" (core) API group ----
+  - apiGroups: [""]
+    # Resources this Role can access in the namespace
+    resources:
+      - pods           # see pods in the namespace
+      - services       # see Services
+      - endpoints      # see Endpoints
+      - pods/log       # read logs of pods
+    # VERBS = what actions are allowed
+    verbs:
+      - get
+      - list
+      - watch
+
+  # ---- Workloads in the "apps" API group ----
+  - apiGroups:
+      - apps
+    resources:
+      - deployments    # see Deployments
+      - replicasets    # see ReplicaSets
+    verbs:
+      - get
+      - list
+      - watch
+
+  # ---- HPA objects in the "autoscaling" API group ----
+  - apiGroups:
+      - autoscaling
+    resources:
+      - horizontalpodautoscalers   # see HPA objects
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  # Binds the Role to the ServiceAccount in this namespace
+  name: readonly-binding
+subjects:
+  - kind: ServiceAccount
+    # The ServiceAccount we created above
+    name: readonly-sa
+    # namespace field omitted on purpose:
+    #   - it will default to the namespace where this RoleBinding lives
+roleRef:
+  # We are binding a Role (not a ClusterRole)
+  kind: Role
+  # Name of the Role to bind (must match metadata.name above)
+  name: readonly-role
+  apiGroup: rbac.authorization.k8s.io

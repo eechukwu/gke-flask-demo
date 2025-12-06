@@ -1,0 +1,38 @@
+# ------------------------------------------------------------
+# NETWORKPOLICY: LOCK DOWN ACCESS TO FLASK APP
+# ------------------------------------------------------------
+# Goal:
+#   - Apply this policy in a namespace (dev/prod).
+#   - Only pods with label access=allowed can talk to the Flask app.
+#   - All other pod → Flask traffic is denied (for this app).
+#
+# Important:
+#   - NetworkPolicies are *namespace scoped*.
+#   - This Policy only affects pods selected by `podSelector`.
+# ------------------------------------------------------------
+
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  # Name of the NetworkPolicy
+  name: allow-flask-from-allowed-clients
+spec:
+  # This policy applies to pods with this label
+  podSelector:
+    matchLabels:
+      app: flask-gke-demo
+
+  # We are only controlling Ingress (incoming traffic to these pods)
+  policyTypes:
+    - Ingress
+
+  ingress:
+    - from:
+        # Only pods with this label can send traffic to Flask
+        - podSelector:
+            matchLabels:
+              access: allowed
+      ports:
+        # Allowed port for the Flask app
+        - protocol: TCP
+          port: 8080
