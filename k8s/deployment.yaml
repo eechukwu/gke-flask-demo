@@ -19,7 +19,7 @@ spec:
         - name: flask-gke-demo
           # Base image reference; GitHub Actions will overwrite this with kubectl set image
           image: europe-west2-docker.pkg.dev/k8s-interview-lab/flask-repo/flask-gke-demo:latest
-          imagePullPolicy: IfNotPresent
+          imagePullPolicy: Always
 
           # The Flask app listens on port 8080
           ports:
