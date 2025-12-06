@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-gke-demo
+  labels:
+    app: flask-gke-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flask-gke-demo
+  template:
+    metadata:
+      labels:
+        app: flask-gke-demo
+    spec:
+      containers:
+        - name: flask-gke-demo
+          image: europe-west2-docker.pkg.dev/k8s-interview-lab/flask-repo/flask-gke-demo:v2
+          ports:
+            - containerPort: 8080
