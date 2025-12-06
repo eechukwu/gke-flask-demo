@@ -5,6 +5,7 @@ metadata:
   labels:
     app: flask-gke-demo
 spec:
+  # We run 2 replicas so we can see rolling updates & basic scaling
   replicas: 2
   selector:
     matchLabels:
@@ -16,6 +17,28 @@ spec:
     spec:
       containers:
         - name: flask-gke-demo
-          image: europe-west2-docker.pkg.dev/k8s-interview-lab/flask-repo/flask-gke-demo:v2
+          # Base image reference; GitHub Actions will overwrite this with kubectl set image
+          image: europe-west2-docker.pkg.dev/k8s-interview-lab/flask-repo/flask-gke-demo:latest
+          imagePullPolicy: IfNotPresent
+
+          # The Flask app listens on port 8080
           ports:
             - containerPort: 8080
+
+          # K8s uses this to decide when the container is "alive" or needs a restart
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10    # wait 10s before first liveness check
+            periodSeconds: 10          # check every 10s
+            failureThreshold: 3        # 3 failed checks => restart the container
+
+          # K8s uses this to decide when the pod is ready to receive traffic
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5     # become ready slightly sooner than liveness
+            periodSeconds: 5
+            failureThreshold: 3
