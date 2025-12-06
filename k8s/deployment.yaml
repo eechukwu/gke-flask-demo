@@ -77,4 +77,4 @@ spec:
       volumes:
         - name: flask-secret-volume
           secret:
-            secretName: flask-secret     # must match the Secret name
+            secretName: flask-secrets     # must match the Secret name
