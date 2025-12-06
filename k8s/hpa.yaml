@@ -2,7 +2,6 @@ apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: flask-gke-demo
-  namespace: dev
 spec:
   # Link this HPA to the Deployment we want to scale
   scaleTargetRef:

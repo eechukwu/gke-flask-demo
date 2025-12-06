@@ -2,7 +2,6 @@ apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
   name: flask-gke-demo
-  namespace: dev
 spec:
   # Which workload this VPA targets
   targetRef:
