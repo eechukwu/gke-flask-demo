@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: flask-config
+  namespace: dev
+data:
+  APP_MESSAGE: "Hello from ConfigMap on GKE (dev namespace)!"

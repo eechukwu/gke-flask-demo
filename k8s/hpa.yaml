@@ -1,0 +1,25 @@
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: flask-gke-demo
+  namespace: dev
+spec:
+  # Link this HPA to the Deployment we want to scale
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: flask-gke-demo
+
+  # Min and max replicas for the Deployment
+  minReplicas: 2
+  maxReplicas: 5
+
+  # Scale based on average CPU utilization across pods
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          # Use percentage of requested CPU
+          type: Utilization
+          averageUtilization: 50

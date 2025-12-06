@@ -42,3 +42,12 @@ spec:
             initialDelaySeconds: 5     # become ready slightly sooner than liveness
             periodSeconds: 5
             failureThreshold: 3
+
+          # Resource requests/limits for scheduling and protection
+          resources:
+            requests:
+              cpu: "100m"      # reserve 0.1 vCPU
+              memory: "128Mi"  # reserve 128MiB RAM
+            limits:
+              cpu: "500m"      # cap at 0.5 vCPU
+              memory: "256Mi"  # cap at 256MiB RAM

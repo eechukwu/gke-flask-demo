@@ -1,0 +1,146 @@
+name: Deploy Flask App to GKE
+
+on:
+  push:
+    branches:
+      - main       # deploy to dev on main push
+    tags:
+      - 'v*'       # deploy to prod on tags like v0.1.0
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+  GKE_ZONE: ${{ secrets.GKE_ZONE }}
+
+  AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
+  IMAGE_NAME: "flask-gke-demo"
+
+  K8S_NAMESPACE_DEV: "dev"
+  K8S_NAMESPACE_PROD: "prod"
+
+jobs:
+  # -------------------
+  # Deploy to DEV
+  # -------------------
+  deploy-dev:
+    runs-on: ubuntu-latest
+
+    # Only when pushing to main (not tags)
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      # 🔐 Reuse shared GCP login (no Docker config needed)
+      - name: GCP login
+        uses: ./.github/actions/gcp-login
+        with:
+          service-account-key: ${{ secrets.GCP_SA_KEY }}
+          configure-docker: "false"
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials "$GKE_CLUSTER" \
+            --zone "$GKE_ZONE"
+
+      - name: Apply Kubernetes manifests to dev
+        env:
+          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_DEV }}
+        run: |
+          # Namespace
+          kubectl apply -f k8s/namespace-dev.yaml
+
+          # Config & secrets
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/configmap.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/secret.yaml
+
+          # Core app
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/deployment.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/service.yaml
+
+          # Scaling resources
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/hpa.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/vpa.yaml || echo "VPA apply failed – continuing."
+
+      - name: Update deployment image (dev)
+        env:
+          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_DEV }}
+        run: |
+          # Use the latest image built by the build-image pipeline
+          IMAGE_TAG="${AR_REPO}/${IMAGE_NAME}:latest"
+
+          kubectl set image deployment/flask-gke-demo \
+            flask-gke-demo="$IMAGE_TAG" \
+            --namespace="$K8S_NAMESPACE"
+
+      - name: Check rollout status (dev)
+        env:
+          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_DEV }}
+        run: |
+          kubectl rollout status deployment/flask-gke-demo \
+            --namespace="$K8S_NAMESPACE" \
+            --timeout=180s
+
+  # -------------------
+  # Deploy to PROD
+  # -------------------
+  deploy-prod:
+    runs-on: ubuntu-latest
+
+    # Only when pushing tags like v0.1.0
+    if: startsWith(github.ref, 'refs/tags/v')
+
+    # Attach this job to the "prod" environment for manual approval
+    environment:
+      name: prod
+
+    steps:
+      # 🔐 Reuse shared GCP login
+      - name: GCP login
+        uses: ./.github/actions/gcp-login
+        with:
+          service-account-key: ${{ secrets.GCP_SA_KEY }}
+          configure-docker: "false"
+
+      - name: Get GKE credentials
+        run: |
+          gcloud container clusters get-credentials "$GKE_CLUSTER" \
+            --zone "$GKE_ZONE"
+
+      - name: Apply Kubernetes manifests to prod
+        env:
+          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_PROD }}
+        run: |
+          # Namespace (you'll need a k8s/namespace-prod.yaml file)
+          kubectl apply -f k8s/namespace-prod.yaml
+
+          # Config & secrets
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/configmap.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/secret.yaml
+
+          # Core app
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/deployment.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/service.yaml
+
+          # Scaling resources
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/hpa.yaml
+          kubectl apply -n "$K8S_NAMESPACE" -f k8s/vpa.yaml || echo "VPA apply failed – continuing."
+
+      - name: Update deployment image (prod)
+        env:
+          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_PROD }}
+        run: |
+          # Simple version: use latest image for prod as well
+          # (Later we can switch this to use a specific tag = release version)
+          IMAGE_TAG="${AR_REPO}/${IMAGE_NAME}:latest"
+
+          kubectl set image deployment/flask-gke-demo \
+            flask-gke-demo="$IMAGE_TAG" \
+            --namespace="$K8S_NAMESPACE"
+
+      - name: Check rollout status (prod)
+        env:
+          K8S_NAMESPACE: ${{ env.K8S_NAMESPACE_PROD }}
+        run: |
+          kubectl rollout status deployment/flask-gke-demo \
+            --namespace="$K8S_NAMESPACE" \
+            --timeout=180s

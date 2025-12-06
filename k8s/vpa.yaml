@@ -1,0 +1,26 @@
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: flask-gke-demo
+  namespace: dev
+spec:
+  # Which workload this VPA targets
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: flask-gke-demo
+
+  # Start safe: only recommend values, don't auto-evict pods
+  updatePolicy:
+    updateMode: "Off"   # "Off" = recommendations only, "Auto" = VPA evicts & resizes pods
+
+  # Optional guardrails for min/max values
+  resourcePolicy:
+    containerPolicies:
+      - containerName: flask-gke-demo
+        minAllowed:
+          cpu: "50m"
+          memory: "64Mi"
+        maxAllowed:
+          cpu: "1"
+          memory: "512Mi"
