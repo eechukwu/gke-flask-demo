@@ -18,11 +18,11 @@ jobs:
     # Only when pushing to main (not tags)
     if: github.ref == 'refs/heads/main'
 
-    # Job-level env so we can use secrets safely
+    # Job-level env so we can safely use secrets
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GKE_CLUSTER: ${{ secrets.GCP_CLUSTER_NAME }}
-      GKE_ZONE: ${{ secrets.GCP_ZONE }}
+      GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+      GKE_ZONE: ${{ secrets.GKE_ZONE }}
       AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
       IMAGE_NAME: "flask-gke-demo"
       K8S_NAMESPACE: "dev"
@@ -95,8 +95,8 @@ jobs:
     # Job-level env with secrets + prod namespace
     env:
       PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-      GKE_CLUSTER: ${{ secrets.GCP_CLUSTER_NAME }}
-      GKE_ZONE: ${{ secrets.GCP_ZONE }}
+      GKE_CLUSTER: ${{ secrets.GKE_CLUSTER_NAME }}
+      GKE_ZONE: ${{ secrets.GKE_ZONE }}
       AR_REPO: "europe-west2-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/flask-repo"
       IMAGE_NAME: "flask-gke-demo"
       K8S_NAMESPACE: "prod"
