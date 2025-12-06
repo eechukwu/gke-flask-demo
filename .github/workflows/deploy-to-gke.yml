@@ -35,20 +35,29 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Step 2: Configure gcloud using our service account key from secrets
-      # This logs us into GCP as the gh-actions-deployer service account
-      - name: Set up gcloud
+      # Step 2: Install gcloud CLI in the runner
+      # We are not relying on this action for auth; we will authenticate explicitly in the next step.
+      - name: Set up gcloud CLI
         uses: google-github-actions/setup-gcloud@v2
         with:
           project_id: ${{ secrets.GCP_PROJECT_ID }}
-          service_account_key: ${{ secrets.GCP_SA_KEY }}
-          export_default_credentials: true
+          export_default_credentials: false
 
-      # Step 3: Configure Docker to authenticate to Artifact Registry
-      # This lets 'docker push' send images to europe-west2-docker.pkg.dev
-      - name: Configure Docker for Artifact Registry
+      # Step 3: Authenticate with the service account and configure Docker for Artifact Registry
+      - name: Authenticate and configure Docker for Artifact Registry
         run: |
-          gcloud auth configure-docker europe-west2-docker.pkg.dev
+          # Write the JSON key from GitHub Secrets to a temp file
+          echo '${{ secrets.GCP_SA_KEY }}' > /tmp/gcp-key.json
+
+          # Activate the service account using the key file
+          gcloud auth activate-service-account \
+            --key-file=/tmp/gcp-key.json
+
+          # Set the project (so gcloud knows which project to work with)
+          gcloud config set project "$PROJECT_ID"
+
+          # Configure Docker to use gcloud as a credential helper for Artifact Registry
+          gcloud auth configure-docker europe-west2-docker.pkg.dev --quiet
 
       # Step 4: Enable Docker Buildx (so we can build linux/amd64 images)
       - name: Set up Docker Buildx
@@ -65,7 +74,7 @@ jobs:
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
           # Build and push the image for linux/amd64 (architecture used by GKE nodes)
-          docker buildx build \
+          docker buildx.build \
             --platform linux/amd64 \
             -t "$IMAGE_TAG" \
             --push .
