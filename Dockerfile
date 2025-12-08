@@ -16,3 +16,4 @@ EXPOSE 8080
 
 # Command to start the app
 CMD ["python", "app.py"]
+# Trigger rebuild
