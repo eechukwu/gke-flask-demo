@@ -3,18 +3,23 @@ module "vpc" {
   version = "5.21.0"
 
   name = "${var.project_name}-${var.environment}-vpc"
+  cidr = var.vpc_cidr
 
-  cidr = "10.10.0.0/16"
+  # AZs to spread subnets across
+  azs = var.azs
 
-  azs = [
-    "eu-west-2a",
-    "eu-west-2b",
-  ]
+  # Public subnets (for bastion, ALB, etc.)
+  public_subnets = var.public_subnets
 
-  public_subnets = [
-    "10.10.10.0/24",
-    "10.10.20.0/24",
-  ]
+  # 🔹 NEW: Private subnets (for app/DB later)
+  private_subnets = var.private_subnets
+
+  # 🔹 NEW: NAT so private subnets can talk OUT to the internet
+  enable_nat_gateway = true
+  single_nat_gateway = true
+
+  # Public subnets automatically get public IPs on launch
+  map_public_ip_on_launch = true
 
   tags = {
     Project     = var.project_name
