@@ -1,0 +1,58 @@
+name: "AWS Infra - Dev Destroy"
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "DESTROY" (all caps) to confirm destroying DEV infrastructure'
+        required: true
+      environment:
+        description: "Environment to destroy (only 'dev' is allowed here)"
+        required: true
+        default: "dev"
+
+env:
+  TF_VERSION: "1.7.0"
+  AWS_REGION: "eu-west-2"
+  WORKING_DIR: "infra/aws/envs/dev"
+
+permissions:
+  id-token: write       # needed for OIDC -> AWS
+  contents: read
+
+jobs:
+  destroy-dev:
+    name: "Terraform Destroy - Dev"
+    runs-on: ubuntu-latest
+
+    # Safety guard: only run if user typed DESTROY and env == dev
+    if: >
+      github.event.inputs.confirm == 'DESTROY' &&
+      github.event.inputs.environment == 'dev'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::354852339163:role/GitHubActionsTerraformRole
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform init -input=false
+
+      - name: Terraform Plan (destroy)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform plan -destroy -input=false -no-color -out=tfplan-destroy
+
+      - name: Terraform Destroy (apply plan)
+        working-directory: ${{ env.WORKING_DIR }}
+        run: terraform apply -input=false -auto-approve tfplan-destroy
