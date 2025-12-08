@@ -1,16 +1,17 @@
 # .github/workflows/aws-infra-dev.yml
-name: "AWS Infra - Dev"
-
+name: "AWS Infra to AWS Dev Env" 
 on:
   push:
     branches: [main]
     paths:
-      - 'infra/aws/envs/dev/**'
+      - 'infra/aws/envs/dev/*.tf'
+      - 'infra/aws/envs/dev/*.tfvars'
   pull_request:
     branches: [main]
     paths:
-      - 'infra/aws/envs/dev/**'
-  workflow_dispatch:  # Manual trigger
+      - 'infra/aws/envs/dev/*.tf'
+      - 'infra/aws/envs/dev/*.tfvars'
+  workflow_dispatch:
 
 env:
   TF_VERSION: "1.7.0"
@@ -72,7 +73,6 @@ jobs:
     name: "Terraform Apply"
     needs: plan
     runs-on: ubuntu-latest
-    # Apply only on main + push or manual dispatch
     if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     
     steps:
