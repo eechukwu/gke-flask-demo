@@ -6,15 +6,12 @@
 - [Part 1: Manual Cleanup](#part-1-manual-cleanup-one-time)
 - [Part 2: Manual Prerequisites](#part-2-manual-prerequisites-one-time)
 - [Part 3: Terraform Files Structure](#part-3-terraform-files-structure)
-- [Part 4: Local Terraform Commands](#part-4-local-terraform-commands)
+- [Part 4: Local Commands](#part-4-local-commands)
 - [Part 5: GitHub Actions Pipelines](#part-5-github-actions-pipelines)
 - [Part 6: GitHub Secrets Required](#part-6-github-secrets-required)
 - [Part 7: Post-Deployment Commands](#part-7-post-deployment-commands)
 - [Part 8: Workflow Structure](#part-8-workflow-structure)
-- [Part 9: Interview Questions & Answers](#part-9-interview-questions--answers)
-- [Part 10: Troubleshooting Commands](#part-10-troubleshooting-commands)
-- [Part 11: Files to NOT Commit](#part-11-files-to-not-commit)
-- [Part 12: Summary](#part-12-summary)
+- [Part 9: Bootstrap Resources](#part-9-bootstrap-resources-not-managed-by-terraform)
 
 ---
 
@@ -30,7 +27,7 @@ We migrated from a manually created GKE cluster to a fully IaC-managed infrastru
 | Node Pool | k8s-interview-cluster-node-pool | europe-west2-b |
 | Artifact Registry | flask-repo | europe-west2 |
 | Terraform State | k8s-interview-lab-tfstate | europe-west2 |
-| Service Account | gh-actions-deployer | - |
+| Service Account | gh-actions-deployer | Manual (not Terraform) |
 
 ---
 
@@ -82,7 +79,14 @@ gsutil mb -p k8s-interview-lab -l europe-west2 gs://k8s-interview-lab-tfstate
 gsutil versioning set on gs://k8s-interview-lab-tfstate
 ```
 
-### 2.3 Grant IAM Roles to Service Account
+### 2.3 Create Service Account
+```bash
+gcloud iam service-accounts create gh-actions-deployer \
+  --display-name="GitHub Actions Deployer" \
+  --project k8s-interview-lab
+```
+
+### 2.4 Grant IAM Roles to Service Account
 ```bash
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
@@ -90,7 +94,15 @@ gcloud projects add-iam-policy-binding k8s-interview-lab \
 
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
+  --role="roles/container.admin"
+
+gcloud projects add-iam-policy-binding k8s-interview-lab \
+  --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/artifactregistry.admin"
+
+gcloud projects add-iam-policy-binding k8s-interview-lab \
+  --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
+  --role="roles/artifactregistry.writer"
 
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
@@ -113,7 +125,7 @@ gcloud projects add-iam-policy-binding k8s-interview-lab \
   --role="roles/resourcemanager.projectIamAdmin"
 ```
 
-### 2.4 Grant Service Account User Role
+### 2.5 Grant Service Account User Role
 ```bash
 gcloud iam service-accounts add-iam-policy-binding \
   137993611700-compute@developer.gserviceaccount.com \
@@ -122,27 +134,21 @@ gcloud iam service-accounts add-iam-policy-binding \
   --project=k8s-interview-lab
 ```
 
-### 2.5 Verify SA Permissions
+### 2.6 Generate Service Account Key
+```bash
+gcloud iam service-accounts keys create gh-actions-key.json \
+  --iam-account=gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com
+
+cat gh-actions-key.json
+```
+
+### 2.7 Verify SA Permissions
 ```bash
 gcloud projects get-iam-policy k8s-interview-lab \
   --flatten="bindings[].members" \
   --filter="bindings.members:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --format="table(bindings.role)"
 ```
-
-**Expected output:**
-
-| ROLE |
-|------|
-| roles/artifactregistry.admin |
-| roles/artifactregistry.writer |
-| roles/compute.networkAdmin |
-| roles/compute.viewer |
-| roles/container.admin |
-| roles/container.clusterAdmin |
-| roles/iam.serviceAccountAdmin |
-| roles/resourcemanager.projectIamAdmin |
-| roles/storage.admin |
 
 ---
 
@@ -155,7 +161,6 @@ infra/gcp/envs/dev/
 ├── terraform.tfvars
 ├── gke.tf
 ├── artifact-registry.tf
-├── iam.tf
 └── outputs.tf
 ```
 
@@ -167,44 +172,38 @@ infra/gcp/envs/dev/
 | terraform.tfvars | Actual values for variables |
 | gke.tf | GKE cluster and node pool |
 | artifact-registry.tf | Docker registry for container images |
-| iam.tf | Service account and IAM bindings |
 | outputs.tf | Cluster endpoint and connect command |
 
 ---
 
-## Part 4: Local Terraform Commands
+## Part 4: Local Commands
 
-### 4.1 Fix Local Auth (if needed)
+### 4.1 Fix Local Auth
 ```bash
 rm -f ~/.config/gcloud/application_default_credentials.json
 
 gcloud auth application-default login --scopes="https://www.googleapis.com/auth/cloud-platform"
 ```
 
-Or use SA key directly:
-```bash
-export GOOGLE_APPLICATION_CREDENTIALS=~/Desktop/gke-flask-demo/gh-actions-key.json
-```
-
-### 4.2 Initialize and Import
+### 4.2 Initialize Terraform
 ```bash
 cd infra/gcp/envs/dev
 
 terraform init
-
 terraform fmt
-
 terraform validate
-
-terraform import google_service_account.gh_actions \
-  projects/k8s-interview-lab/serviceAccounts/gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com
-
 terraform plan
 ```
 
-### 4.3 Force Unlock (if state locked)
+### 4.3 Force Unlock State
 ```bash
 terraform force-unlock <LOCK_ID>
+```
+
+### 4.4 Clear Corrupted State
+```bash
+gsutil rm gs://k8s-interview-lab-tfstate/gcp/dev/default.tflock
+gsutil rm gs://k8s-interview-lab-tfstate/gcp/dev/default.tfstate
 ```
 
 ---
@@ -219,11 +218,6 @@ terraform force-unlock <LOCK_ID>
 | PR to main on infra/gcp/envs/dev/* | Plan only |
 | Manual workflow_dispatch | Plan + Apply |
 
-**Jobs:**
-
-1. Plan - Init, format check, validate, plan, upload artifact
-2. Apply - Download plan, apply (only on main branch)
-
 ### 5.2 Destroy Pipeline (gcp-infra-dev-destroy.yml)
 
 | Trigger | Action |
@@ -231,21 +225,19 @@ terraform force-unlock <LOCK_ID>
 | Manual workflow_dispatch | Plan destroy + Apply destroy |
 
 **Safety Guards:**
-
 - Must type DESTROY to confirm
 - Must select environment dev
-- Both conditions must match for job to run
 
 ---
 
 ## Part 6: GitHub Secrets Required
 
-| Secret | Description | Example |
-|--------|-------------|---------|
-| GCP_SA_KEY | JSON key for gh-actions-deployer | {"type": "service_account", ...} |
-| GCP_PROJECT_ID | GCP project ID | k8s-interview-lab |
-| GKE_CLUSTER_NAME | GKE cluster name | k8s-interview-cluster |
-| GKE_ZONE | GKE cluster zone | europe-west2-b |
+| Secret | Description |
+|--------|-------------|
+| GCP_SA_KEY | JSON key for gh-actions-deployer |
+| GCP_PROJECT_ID | k8s-interview-lab |
+| GKE_CLUSTER_NAME | k8s-interview-cluster |
+| GKE_ZONE | europe-west2-b |
 
 ---
 
@@ -261,17 +253,18 @@ gcloud container clusters get-credentials k8s-interview-cluster \
 ### 7.2 Verify Resources
 ```bash
 kubectl get nodes
-
 kubectl cluster-info
-
 kubectl get namespaces
+kubectl get pods -A
 ```
 
-### 7.3 Configure Docker for Artifact Registry
+### 7.3 Check Artifact Registry
 ```bash
-# Check Artifact Registry exists
 gcloud artifacts repositories list --location europe-west2 --project k8s-interview-lab
+```
 
+### 7.4 Configure Docker
+```bash
 gcloud auth configure-docker europe-west2-docker.pkg.dev
 ```
 
@@ -289,164 +282,14 @@ gcloud auth configure-docker europe-west2-docker.pkg.dev
 └── aws-infra-dev-destroy.yml    # AWS Terraform destroy
 ```
 
-**Pipeline Flow:**
-
-1. Infrastructure pipelines run on infra/* changes
-2. App pipelines run on app code changes
-3. build.yml triggers deploy-dev.yml triggers deploy-prod.yml
-
 ---
 
-## Part 9: Interview Questions & Answers
+## Part 9: Bootstrap Resources (Not Managed by Terraform)
 
-### Q1: Why use remote state instead of local state?
+| Resource | Why Manual |
+|----------|------------|
+| Service Account | Terraform needs it to authenticate |
+| GCS Bucket | Terraform needs it to store state |
+| IAM Roles | SA needs permissions before Terraform runs |
 
-Remote state (GCS/S3) provides:
-
-- Team collaboration - Multiple engineers can work on same infra
-- State locking - Prevents concurrent modifications
-- Security - State files contain sensitive data, shouldn't be in git
-- Durability - Cloud storage is more reliable than local disk
-- CI/CD compatibility - Pipelines need access to state
-
-### Q2: Why did you import the service account instead of creating it?
-
-The SA gh-actions-deployer already existed from the manual setup. Terraform import brings existing resources under Terraform management without recreating them. This:
-
-- Avoids destroying and recreating the SA
-- Preserves the existing SA key used by GitHub Actions
-- Maintains continuity of IAM bindings
-
-### Q3: What's the difference between container.admin and container.clusterAdmin?
-
-- container.admin - Full control over GKE resources (clusters, node pools)
-- container.clusterAdmin - Kubernetes RBAC cluster-admin role inside the cluster
-
-Both are needed: one for managing GKE infrastructure, one for kubectl operations.
-
-### Q4: Why enable deletion_protection = false?
-
-For a dev environment, we want the ability to easily destroy and recreate the cluster. In production, this should be true to prevent accidental deletion.
-
-### Q5: Why separate infra and app pipelines?
-
-- Different triggers - Infra changes are less frequent than app changes
-- Different permissions - Infra needs admin access, app just needs deploy access
-- Blast radius - Infra changes are higher risk, should be separate
-- Speed - App deploys should be fast, not waiting for infra checks
-
-### Q6: What happens if the pipeline fails mid-apply?
-
-Terraform state tracks what was created. On retry:
-
-- Already-created resources won't be recreated
-- Failed resources will be retried
-- State locking prevents corruption from concurrent runs
-
-### Q7: Why use workflow_dispatch with confirmation for destroy?
-
-Destroy is destructive and irreversible. The confirmation:
-
-- Prevents accidental triggers
-- Requires explicit intent (typing DESTROY)
-- Provides audit trail of who triggered it
-
-### Q8: How do you handle secrets in Terraform?
-
-- Never commit secrets to git
-- Use GitHub Secrets for pipeline credentials
-- Mark sensitive outputs with sensitive = true
-- Use remote state with encryption enabled
-- SA keys stored only in GitHub Secrets, not in repo
-
-### Q9: What's the purpose of the .terraform.lock.hcl file?
-
-It locks provider versions to ensure consistent behavior across team members and CI/CD. Should be committed to git, unlike .terraform/ directory.
-
-### Q10: How would you extend this to production?
-
-- Create infra/gcp/envs/prod/ with separate tfvars
-- Use different GCS state prefix (gcp/prod)
-- Enable deletion_protection = true
-- Add manual approval step in pipeline
-- Use larger machine types and more nodes
-- Enable private cluster and VPC-native networking
-
----
-
-## Part 10: Troubleshooting Commands
-```bash
-# Check Terraform state
-terraform state list
-
-# View specific resource in state
-terraform state show google_container_cluster.primary
-
-# Refresh state from actual infrastructure
-terraform refresh
-
-# Force unlock stuck state
-terraform force-unlock <LOCK_ID>
-
-# Taint resource for recreation
-terraform taint google_container_node_pool.primary_nodes
-
-# Import existing resource
-terraform import <resource_address> <resource_id>
-
-# Check GKE cluster status
-gcloud container clusters describe k8s-interview-cluster \
-  --zone europe-west2-b \
-  --project k8s-interview-lab
-
-# Check SA permissions
-gcloud projects get-iam-policy k8s-interview-lab \
-  --flatten="bindings[].members" \
-  --filter="bindings.members:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
-  --format="table(bindings.role)"
-```
-
----
-
-## Part 11: Files to NOT Commit
-```
-# Terraform - DO NOT COMMIT
-.terraform/
-terraform.tfstate
-terraform.tfstate.*
-*.tfplan
-crash.log
-
-# GCP - DO NOT COMMIT
-gh-actions-key.json
-
-# Terraform - SHOULD COMMIT
-.terraform.lock.hcl
-```
-
----
-
-## Part 12: Summary
-
-### Manual vs IaC
-
-| Task | Manual | IaC |
-|------|--------|-----|
-| Enable APIs | Yes | |
-| Create GCS bucket | Yes | |
-| Grant IAM roles | Yes | |
-| Import existing SA | Yes | |
-| Create GKE cluster | | Yes |
-| Create node pool | | Yes |
-| Create Artifact Registry | | Yes |
-| Manage IAM bindings | | Yes |
-| Day-2 changes | | Yes |
-| Destroy infrastructure | | Yes |
-
-### Key Learnings
-
-1. Remote state first - GCS bucket must exist before terraform init
-2. SA permissions first - Pipeline SA needs all required roles before running
-3. Import existing resources - Use terraform import for resources created outside Terraform
-4. Lock file is good - .terraform.lock.hcl should be committed
-5. Separate infra and app pipelines - Infrastructure changes shouldn't trigger app deployments
+**Lesson Learned:** Never let Terraform manage credentials it uses to run.
