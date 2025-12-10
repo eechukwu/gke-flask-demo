@@ -93,20 +93,54 @@ A: Resource = create/manage. Data source = read existing (lookup AMI, existing V
 
 ## CI/CD & DEPLOYMENTS
 
-### Strategies
+### Deployment Strategies
+| Strategy | How It Works | Rollback | Best For |
+|----------|--------------|----------|----------|
+| **Blue-Green** | 2 identical envs, switch traffic instantly | Instant (switch back) | Critical apps, instant rollback |
+| **Canary** | Route 5% → 25% → 50% → 100%, monitor at each step | Fast (route back to old) | Gradual validation, catch issues early |
+| **Rolling** | Replace pods one by one (K8s default) | Slow (redeploy old) | Standard deployments |
+
+### Pipeline Stages (Know This Flow)
+```
+Commit → Build → Test → SAST/SCA → Image Scan → Push → Dev → Staging → Approval → Prod → Verify
+```
+
+### Manual Approvals
 | Question | Key Points |
 |----------|------------|
-| **Explain blue/green deployment** | Two identical environments. Deploy to inactive (green), test, switch traffic. Instant rollback = switch back |
-| **Explain canary deployment** | Route small % to new version, monitor, gradually increase. Reduces blast radius |
-| **How do you handle database migrations in CI/CD?** | Forward-compatible migrations, separate from app deploy, feature flags for breaking changes, never rollback DB |
-| **How do you implement GitOps?** | Git = source of truth. Changes via PR. Automated sync (ArgoCD/Flux). Drift detection + reconciliation |
+| **How do you gate production deploys?** | GitHub: Environments + protection rules (required reviewers). Jenkins: input step. GitLab: manual jobs |
+| **How do you promote images dev → prod?** | Build once, deploy many. Tag with git SHA, same image through all envs. Only config changes per env |
+
+### Rollback
+```bash
+kubectl rollout undo deployment/NAME                    # Previous version
+kubectl rollout undo deployment/NAME --to-revision=3   # Specific version
+kubectl rollout history deployment/NAME                 # See history
+```
+
+### Pipeline Security / Hardening
+| Stage | What It Does | Tools |
+|-------|--------------|-------|
+| **Secret Scanning** | Find leaked creds in code | gitleaks, trufflehog, GitHub secret scanning |
+| **SAST** | Static code analysis | SonarQube, Semgrep, CodeQL |
+| **SCA** | Scan dependencies for CVEs | Snyk, Dependabot, OWASP Dependency-Check |
+| **Image Scanning** | Scan container for vulnerabilities | Trivy, Grype, Clair |
+| **SBOM + Signing** | Bill of materials + verify image | Syft (SBOM), Cosign (signing) |
+
+### Key Interview Answers
+| Question | Answer |
+|----------|--------|
+| **Blue-green vs canary?** | Blue-green = instant rollback. Canary = validate with real traffic first, catch issues tests miss |
+| **How do you secure pipelines?** | Secret scanning, dependency scanning (SCA), image scanning (Trivy), sign images, fail on HIGH/CRITICAL CVEs |
+| **What's an SBOM?** | Software Bill of Materials - list of all components. Used for compliance + checking which services affected by new CVEs |
+| **Secrets in pipelines?** | Never in code. GitHub encrypted secrets or Secrets Manager. Inject at runtime. Run secret scanning to catch leaks |
 
 ### Pipeline Design
 | Question | Key Points |
 |----------|------------|
 | **Design a CI/CD pipeline for microservices** | Mono-repo or multi-repo, build on PR, test (unit/integration), security scan, build image, deploy to dev → staging → prod with gates |
-| **How do you handle secrets in pipelines?** | Never in code. Use CI/CD secret management, AWS Secrets Manager, or Vault. Inject at runtime |
-| **How do you ensure pipeline security?** | Signed commits, branch protection, least privilege IAM, scan dependencies, image scanning, audit logs |
+| **How do you handle database migrations in CI/CD?** | Forward-compatible migrations, separate from app deploy, feature flags for breaking changes, never rollback DB |
+| **How do you implement GitOps?** | Git = source of truth. Changes via PR. Automated sync (ArgoCD/Flux). Drift detection + reconciliation |
 
 ---
 
@@ -185,6 +219,103 @@ Microservices:  API GW → ALB → ECS/EKS → Service Mesh (App Mesh) → RDS/D
 | Compute bottleneck | Horizontal scaling (ASG), larger instances, optimize code |
 | Global latency | CloudFront, multi-region, Global Accelerator |
 | Burst traffic | Queue (SQS) to decouple, Lambda for auto-scale |
+
+---
+
+## PYTHON FOR DEVOPS
+
+### Quick Skeleton (Use This in Interview)
+
+```python
+#!/usr/bin/env python3
+"""
+Script purpose: One-line description of what it does.
+Usage: python script.py --env dev --dry-run
+"""
+
+import os          # Environment variables
+import sys         # Exit codes
+import logging     # Production-ready logging
+import argparse    # CLI argument parsing
+import requests    # HTTP calls
+import boto3       # AWS SDK
+
+# ============ SETUP LOGGING (not print!) ============
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# ============ CONFIGURATION ============
+# Never hardcode secrets - always use environment variables
+API_URL = os.environ.get('API_URL', 'https://api.example.com')
+AWS_REGION = os.environ.get('AWS_REGION', 'eu-west-2')
+
+# ============ MAIN LOGIC ============
+def main(environment: str, dry_run: bool = False):
+    """Main entry point."""
+    logger.info(f"Starting for environment: {environment}")
+    
+    try:
+        result = do_work(environment)
+        
+        if dry_run:
+            logger.info(f"DRY RUN - would do: {result}")
+        else:
+            logger.info(f"Result: {result}")
+            
+    except Exception as e:
+        logger.error(f"Failed: {e}")
+        sys.exit(1)  # Non-zero = failure (CI/CD will catch this)
+    
+    logger.info("Completed successfully")
+
+def do_work(env: str) -> dict:
+    """Example: AWS + HTTP call."""
+    # AWS SDK call
+    ec2 = boto3.client('ec2', region_name=AWS_REGION)
+    instances = ec2.describe_instances()
+    
+    # HTTP call with timeout + error handling
+    response = requests.get(f"{API_URL}/health", timeout=5)
+    response.raise_for_status()  # Raises on 4xx/5xx
+    
+    return {"status": "ok", "count": len(instances)}
+
+# ============ CLI ENTRYPOINT ============
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='DevOps script')
+    parser.add_argument('--env', required=True, 
+                        choices=['dev', 'staging', 'prod'],
+                        help='Target environment')
+    parser.add_argument('--dry-run', action='store_true',
+                        help='Preview without executing')
+    
+    args = parser.parse_args()
+    main(environment=args.env, dry_run=args.dry_run)
+```
+
+### Key Points to Explain
+| Element | Why |
+|---------|-----|
+| `#!/usr/bin/env python3` | Shebang - makes script executable directly |
+| `logging` not `print` | Configurable levels, timestamps, production-ready |
+| `os.environ.get()` | Secrets from env vars, never hardcode |
+| `argparse` | CLI with built-in help, validation |
+| `--dry-run` | Safe mode for destructive scripts |
+| `try/except` + `sys.exit(1)` | Proper error handling, CI/CD sees failures |
+| `if __name__ == "__main__"` | Script can be imported without running |
+| `timeout=5` | Never hang forever on HTTP calls |
+| `raise_for_status()` | Fail fast on bad HTTP responses |
+
+### Common Libraries
+| Library | Use Case |
+|---------|----------|
+| `boto3` | AWS (EC2, S3, IAM) |
+| `requests` | HTTP/APIs |
+| `subprocess` | Shell commands |
+| `json`/`yaml` | Config files |
 
 ---
 
