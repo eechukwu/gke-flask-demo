@@ -2,6 +2,25 @@
 
 ---
 
+## 📋 TABLE OF CONTENTS
+
+| # | Section | Topics |
+|---|---------|--------|
+| 1 | [Terraform](#terraform) | State, modules, best practices, gotchas |
+| 2 | [AWS Networking](#aws-networking) | VPC, security groups, load balancing |
+| 3 | [AWS Compute](#aws-compute) | EC2, ASG, containers, serverless |
+| 4 | [CI/CD & Deployments](#cicd--deployments) | Strategies, approvals, rollback, security |
+| 5 | [Kubernetes](#kubernetes) | Core concepts, troubleshooting |
+| 6 | [Linux](#linux) | Commands, troubleshooting, systemd |
+| 7 | [Monitoring & Observability](#monitoring--observability) | Metrics, logs, traces, alerting |
+| 8 | [Reliability & Incidents](#reliability--incident-management) | HA, incident response, chaos |
+| 9 | [Security](#security) | IAM, secrets, containers |
+| 10 | [System Design](#system-design-quick-patterns) | Architectures, scaling |
+| 11 | [Python for DevOps](#python-for-devops) | Skeleton, Q&A, practical script |
+| 12 | [Behavioral Tips](#behavioral-tips) | STAR format, questions to ask |
+
+---
+
 ## TERRAFORM
 
 ### State Management
@@ -144,6 +163,90 @@ kubectl rollout history deployment/NAME                 # See history
 
 ---
 
+## KUBERNETES
+
+### Core Concepts
+| Question | Key Points |
+|----------|------------|
+| **Pod vs Deployment vs Service?** | Pod: smallest unit (1+ containers). Deployment: manages ReplicaSets, rolling updates. Service: stable network endpoint |
+| **How does a Service route traffic?** | Selects pods by labels, kube-proxy manages iptables/IPVS rules. ClusterIP (internal), NodePort, LoadBalancer |
+| **What happens when a pod crashes?** | ReplicaSet detects, schedules new pod. Liveness probe failures trigger restart. Deployment maintains desired state |
+| **Namespace use cases?** | Environment separation (dev/prod), team isolation, resource quotas, RBAC boundaries |
+
+### Troubleshooting Commands
+```bash
+kubectl get pods -o wide                    # Pod status + node
+kubectl describe pod POD_NAME               # Events, errors
+kubectl logs POD_NAME -f --previous         # Logs (+ previous crash)
+kubectl exec -it POD_NAME -- /bin/sh        # Shell into pod
+kubectl top pods                            # CPU/memory usage
+kubectl get events --sort-by='.lastTimestamp'  # Recent events
+```
+
+### Key Interview Q&A
+| Question | Answer |
+|----------|--------|
+| **Pod stuck in Pending?** | Check: node resources (`kubectl describe node`), PVC bound, node selectors/taints |
+| **Pod in CrashLoopBackOff?** | Check: `kubectl logs --previous`, liveness probe, app startup time, resource limits |
+| **How does HPA work?** | Metrics Server collects CPU/memory, HPA compares to target, scales replicas. Check: `kubectl get hpa` |
+| **NetworkPolicy?** | Default: all traffic allowed. Policy selects pods, defines ingress/egress rules. Needs CNI support (Calico, Cilium) |
+| **RBAC components?** | ServiceAccount (identity), Role (permissions), RoleBinding (links them). ClusterRole/Binding for cluster-wide |
+
+---
+
+## LINUX
+
+### Essential Commands
+```bash
+# Files & Navigation
+ls -la                    # List all with permissions
+find /var -name "*.log" -mtime +7    # Find files older than 7 days
+grep -r "error" /var/log  # Search recursively
+tail -f /var/log/syslog   # Follow log in real-time
+wc -l file.txt            # Count lines
+
+# Processes
+ps aux | grep nginx       # Find process
+top / htop                # Real-time process monitor
+kill -9 PID               # Force kill process
+systemctl status nginx    # Check service status
+journalctl -u nginx -f    # Follow service logs
+
+# Disk
+df -h                     # Disk usage (human readable)
+du -sh /var/*             # Directory sizes
+lsof +D /var/log          # What's using this directory
+
+# Network
+ss -tulnp                 # Listening ports (netstat replacement)
+curl -I https://site.com  # HTTP headers only
+nc -vz host 443           # Test port connectivity
+dig google.com            # DNS lookup
+ip addr                   # IP addresses
+```
+
+### Key Interview Q&A
+| Question | Answer |
+|----------|--------|
+| **Server slow - how to diagnose?** | `top` (CPU/memory), `df -h` (disk), `free -m` (RAM), `iostat` (I/O), `ss -tulnp` (connections) |
+| **Disk full - how to fix?** | `df -h` (which mount), `du -sh /*` (what's using it), find large files, check logs, clear old data |
+| **Process using port 80?** | `ss -tulnp | grep :80` or `lsof -i :80` |
+| **Check why service failed?** | `systemctl status SERVICE`, then `journalctl -u SERVICE -n 50` |
+| **What's in /etc/passwd?** | User accounts. Format: `user:x:UID:GID:comment:home:shell` |
+| **File permissions 755?** | Owner: rwx (7), Group: r-x (5), Others: r-x (5). `chmod 755 file` |
+| **How to run command on boot?** | systemd unit file, or cron `@reboot`, or `/etc/rc.local` |
+
+### Systemd Essentials
+```bash
+systemctl start|stop|restart nginx    # Control service
+systemctl enable nginx                # Start on boot
+systemctl status nginx                # Check status
+journalctl -u nginx -f                # Follow logs
+journalctl -u nginx --since "1 hour ago"  # Recent logs
+```
+
+---
+
 ## MONITORING & OBSERVABILITY
 
 ### Core Concepts
@@ -224,23 +327,83 @@ Microservices:  API GW → ALB → ECS/EKS → Service Mesh (App Mesh) → RDS/D
 
 ## PYTHON FOR DEVOPS
 
-### Quick Skeleton (Use This in Interview)
+### Quick Skeleton
+```python
+#!/usr/bin/env python3
+"""Script to do X. Usage: python script.py --env dev --dry-run"""
+
+import os, sys, logging, argparse, boto3, requests
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def main(env: str, dry_run: bool = False):
+    try:
+        # Your logic here
+        logger.info(f"Running for {env}")
+        if dry_run:
+            logger.info("DRY RUN - no changes made")
+    except Exception as e:
+        logger.error(f"Failed: {e}")
+        sys.exit(1)  # Non-zero exit = CI/CD knows it failed
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--env', required=True, choices=['dev', 'staging', 'prod'])
+    parser.add_argument('--dry-run', action='store_true')
+    args = parser.parse_args()
+    main(args.env, args.dry_run)
+```
+
+### DevOps Python Interview Q&A
+
+| Question | Answer |
+|----------|--------|
+| **How do you run shell commands?** | `subprocess.run(['kubectl', 'get', 'pods'], check=True, capture_output=True)` |
+| **How do you handle secrets?** | `os.environ.get('API_KEY')` - never hardcode |
+| **How do you make HTTP calls?** | `requests.get(url, timeout=5)` + `response.raise_for_status()` |
+| **How do you parse JSON/YAML?** | `json.load(f)` / `yaml.safe_load(f)` |
+| **Why logging not print?** | Configurable levels, timestamps, can send to file/external systems |
+| **Why `sys.exit(1)`?** | Non-zero exit code tells CI/CD pipeline the script failed |
+| **What's `if __name__ == "__main__"`?** | Only runs when executed directly, not when imported |
+| **What's `--dry-run` for?** | Preview changes without executing - safety for destructive scripts |
+| **How do you retry failed operations?** | Try/except in a loop with exponential backoff, or use `tenacity` library |
+| **Threading vs multiprocessing?** | Threading for I/O-bound (HTTP, files), multiprocessing for CPU-bound |
+
+### Common Libraries
+| Library | Use Case |
+|---------|----------|
+| `boto3` | AWS SDK (EC2, S3, IAM) |
+| `requests` | HTTP calls, APIs |
+| `subprocess` | Run shell commands |
+| `json` / `yaml` | Config files |
+| `argparse` | CLI arguments |
+| `logging` | Production logging |
+
+### Practical Script: Auto-Shutdown Dev VMs at 6PM
 
 ```python
 #!/usr/bin/env python3
 """
-Script purpose: One-line description of what it does.
-Usage: python script.py --env dev --dry-run
+Auto-shutdown script for dev EC2 instances.
+Finds all running instances tagged Environment=dev and stops them.
+Designed to run via cron/EventBridge at 6PM to save costs.
+
+Usage:
+    python shutdown_dev.py --dry-run     # Preview what would stop
+    python shutdown_dev.py               # Actually stop instances
+    
+Cron example (6PM daily):
+    0 18 * * * /usr/bin/python3 /opt/scripts/shutdown_dev.py
 """
 
-import os          # Environment variables
-import sys         # Exit codes
-import logging     # Production-ready logging
-import argparse    # CLI argument parsing
-import requests    # HTTP calls
-import boto3       # AWS SDK
+import boto3
+import logging
+import argparse
+import sys
+from datetime import datetime
 
-# ============ SETUP LOGGING (not print!) ============
+# ============ LOGGING SETUP ============
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
@@ -248,74 +411,140 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ============ CONFIGURATION ============
-# Never hardcode secrets - always use environment variables
-API_URL = os.environ.get('API_URL', 'https://api.example.com')
-AWS_REGION = os.environ.get('AWS_REGION', 'eu-west-2')
+# Tag to identify dev instances - change as needed
+TARGET_TAG_KEY = 'Environment'
+TARGET_TAG_VALUE = 'dev'
+AWS_REGION = 'eu-west-2'
 
-# ============ MAIN LOGIC ============
-def main(environment: str, dry_run: bool = False):
-    """Main entry point."""
-    logger.info(f"Starting for environment: {environment}")
+
+def get_running_dev_instances(ec2_client) -> list:
+    """
+    Find all running EC2 instances tagged as dev environment.
+    
+    Returns:
+        List of instance dictionaries with id, name, type, launch_time
+    """
+    # AWS filter: running instances with Environment=dev tag
+    filters = [
+        {'Name': 'instance-state-name', 'Values': ['running']},
+        {'Name': f'tag:{TARGET_TAG_KEY}', 'Values': [TARGET_TAG_VALUE]}
+    ]
+    
+    response = ec2_client.describe_instances(Filters=filters)
+    
+    instances = []
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            # Extract Name tag if it exists
+            name = 'No Name'
+            for tag in instance.get('Tags', []):
+                if tag['Key'] == 'Name':
+                    name = tag['Value']
+                    break
+            
+            instances.append({
+                'id': instance['InstanceId'],
+                'name': name,
+                'type': instance['InstanceType'],
+                'launch_time': instance['LaunchTime'].strftime('%Y-%m-%d %H:%M')
+            })
+    
+    return instances
+
+
+def stop_instances(ec2_client, instance_ids: list, dry_run: bool = False) -> bool:
+    """
+    Stop the specified EC2 instances.
+    
+    Args:
+        ec2_client: boto3 EC2 client
+        instance_ids: List of instance IDs to stop
+        dry_run: If True, only simulate the stop
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    if not instance_ids:
+        logger.info("No instances to stop")
+        return True
     
     try:
-        result = do_work(environment)
-        
         if dry_run:
-            logger.info(f"DRY RUN - would do: {result}")
+            # AWS dry-run will raise exception but validates permissions
+            try:
+                ec2_client.stop_instances(InstanceIds=instance_ids, DryRun=True)
+            except ec2_client.exceptions.ClientError as e:
+                if 'DryRunOperation' in str(e):
+                    logger.info("DRY RUN - permission check passed")
+                    return True
+                raise
         else:
-            logger.info(f"Result: {result}")
-            
+            ec2_client.stop_instances(InstanceIds=instance_ids)
+            logger.info(f"Stop command sent for {len(instance_ids)} instances")
+        return True
+        
     except Exception as e:
-        logger.error(f"Failed: {e}")
-        sys.exit(1)  # Non-zero = failure (CI/CD will catch this)
-    
-    logger.info("Completed successfully")
+        logger.error(f"Failed to stop instances: {e}")
+        return False
 
-def do_work(env: str) -> dict:
-    """Example: AWS + HTTP call."""
-    # AWS SDK call
+
+def main(dry_run: bool = False):
+    """Main entry point."""
+    logger.info(f"{'[DRY RUN] ' if dry_run else ''}Starting dev instance shutdown")
+    logger.info(f"Looking for instances with tag {TARGET_TAG_KEY}={TARGET_TAG_VALUE}")
+    
+    # Initialize AWS client
     ec2 = boto3.client('ec2', region_name=AWS_REGION)
-    instances = ec2.describe_instances()
     
-    # HTTP call with timeout + error handling
-    response = requests.get(f"{API_URL}/health", timeout=5)
-    response.raise_for_status()  # Raises on 4xx/5xx
+    # Find running dev instances
+    instances = get_running_dev_instances(ec2)
     
-    return {"status": "ok", "count": len(instances)}
+    if not instances:
+        logger.info("No running dev instances found - nothing to do")
+        return
+    
+    # Log what we found
+    logger.info(f"Found {len(instances)} running dev instance(s):")
+    for inst in instances:
+        logger.info(f"  - {inst['id']} | {inst['name']} | {inst['type']} | Started: {inst['launch_time']}")
+    
+    # Stop them
+    instance_ids = [inst['id'] for inst in instances]
+    
+    if dry_run:
+        logger.info(f"DRY RUN - would stop: {instance_ids}")
+    else:
+        success = stop_instances(ec2, instance_ids, dry_run=False)
+        if success:
+            logger.info(f"Successfully initiated shutdown for {len(instance_ids)} instances")
+        else:
+            logger.error("Failed to stop instances")
+            sys.exit(1)
+    
+    logger.info("Shutdown script completed")
 
-# ============ CLI ENTRYPOINT ============
+
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='DevOps script')
-    parser.add_argument('--env', required=True, 
-                        choices=['dev', 'staging', 'prod'],
-                        help='Target environment')
-    parser.add_argument('--dry-run', action='store_true',
-                        help='Preview without executing')
+    parser = argparse.ArgumentParser(
+        description='Stop all running EC2 instances tagged as dev environment'
+    )
+    parser.add_argument(
+        '--dry-run', 
+        action='store_true',
+        help='Preview what would be stopped without actually stopping'
+    )
     
     args = parser.parse_args()
-    main(environment=args.env, dry_run=args.dry_run)
+    main(dry_run=args.dry_run)
 ```
 
-### Key Points to Explain
-| Element | Why |
-|---------|-----|
-| `#!/usr/bin/env python3` | Shebang - makes script executable directly |
-| `logging` not `print` | Configurable levels, timestamps, production-ready |
-| `os.environ.get()` | Secrets from env vars, never hardcode |
-| `argparse` | CLI with built-in help, validation |
-| `--dry-run` | Safe mode for destructive scripts |
-| `try/except` + `sys.exit(1)` | Proper error handling, CI/CD sees failures |
-| `if __name__ == "__main__"` | Script can be imported without running |
-| `timeout=5` | Never hang forever on HTTP calls |
-| `raise_for_status()` | Fail fast on bad HTTP responses |
-
-### Common Libraries
-| Library | Use Case |
-|---------|----------|
-| `boto3` | AWS (EC2, S3, IAM) |
-| `requests` | HTTP/APIs |
-| `subprocess` | Shell commands |
-| `json`/`yaml` | Config files |
+**Key Points to Explain:**
+- Uses **tags** to identify dev instances (`Environment=dev`)
+- **`--dry-run`** flag for safe testing
+- **Logging** with timestamps for audit trail
+- **`sys.exit(1)`** on failure so cron/CI knows it failed
+- Can run via **cron** or **AWS EventBridge** at 6PM daily
+- Saves **~30-40% costs** by stopping non-prod overnight/weekends
 
 ---
 
