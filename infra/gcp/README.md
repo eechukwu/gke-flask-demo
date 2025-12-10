@@ -88,6 +88,7 @@ gcloud iam service-accounts create gh-actions-deployer \
 
 ### 2.4 Grant IAM Roles to Service Account
 ```bash
+# GKE cluster management
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/container.clusterAdmin"
@@ -96,6 +97,12 @@ gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/container.admin"
 
+# Kubernetes RBAC (deploy apps, create namespaces)
+gcloud projects add-iam-policy-binding k8s-interview-lab \
+  --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
+  --role="roles/container.developer"
+
+# Artifact Registry
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/artifactregistry.admin"
@@ -104,14 +111,21 @@ gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/artifactregistry.writer"
 
+# IAM management
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/iam.serviceAccountAdmin"
 
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
+  --role="roles/resourcemanager.projectIamAdmin"
+
+# Storage (Terraform state)
+gcloud projects add-iam-policy-binding k8s-interview-lab \
+  --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/storage.admin"
 
+# Compute/Network
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/compute.networkAdmin"
@@ -119,10 +133,6 @@ gcloud projects add-iam-policy-binding k8s-interview-lab \
 gcloud projects add-iam-policy-binding k8s-interview-lab \
   --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --role="roles/compute.viewer"
-
-gcloud projects add-iam-policy-binding k8s-interview-lab \
-  --member="serviceAccount:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
-  --role="roles/resourcemanager.projectIamAdmin"
 ```
 
 ### 2.5 Grant Service Account User Role
@@ -149,6 +159,21 @@ gcloud projects get-iam-policy k8s-interview-lab \
   --filter="bindings.members:gh-actions-deployer@k8s-interview-lab.iam.gserviceaccount.com" \
   --format="table(bindings.role)"
 ```
+
+**Expected output:**
+
+| ROLE |
+|------|
+| roles/artifactregistry.admin |
+| roles/artifactregistry.writer |
+| roles/compute.networkAdmin |
+| roles/compute.viewer |
+| roles/container.admin |
+| roles/container.clusterAdmin |
+| roles/container.developer |
+| roles/iam.serviceAccountAdmin |
+| roles/resourcemanager.projectIamAdmin |
+| roles/storage.admin |
 
 ---
 
@@ -293,3 +318,18 @@ gcloud auth configure-docker europe-west2-docker.pkg.dev
 | IAM Roles | SA needs permissions before Terraform runs |
 
 **Lesson Learned:** Never let Terraform manage credentials it uses to run.
+
+**IAM Roles Summary:**
+
+| Role | Purpose |
+|------|---------|
+| container.clusterAdmin | Create/manage GKE clusters |
+| container.admin | Full GKE control |
+| container.developer | Deploy apps, create namespaces (K8s RBAC) |
+| artifactregistry.admin | Create/manage registries |
+| artifactregistry.writer | Push images |
+| iam.serviceAccountAdmin | Manage service accounts |
+| resourcemanager.projectIamAdmin | Manage IAM policies |
+| storage.admin | Terraform state bucket |
+| compute.networkAdmin | VPC/network access |
+| compute.viewer | Read compute resources |
