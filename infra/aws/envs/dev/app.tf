@@ -5,6 +5,7 @@ resource "aws_security_group" "app_sg" {
   name        = "${var.project_name}-${var.environment}-app-sg"
   description = "App server HTTP access from within VPC"
   vpc_id      = module.vpc.vpc_id
+
   # Allow HTTP from anywhere inside the VPC CIDR
   # (e.g. bastion in 10.10.10.x -> app in 10.10.30.x)
   ingress {
@@ -14,6 +15,7 @@ resource "aws_security_group" "app_sg" {
     protocol    = "tcp"
     cidr_blocks = [module.vpc.vpc_cidr_block]
   }
+
   # Outbound: allow all (so app can reach internet via NAT if needed)
   egress {
     from_port   = 0
@@ -21,6 +23,7 @@ resource "aws_security_group" "app_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+
   tags = {
     Project     = var.project_name
     Environment = var.environment
@@ -28,9 +31,11 @@ resource "aws_security_group" "app_sg" {
     Name        = "${var.project_name}-${var.environment}-app-sg"
   }
 }
+
 ########################################
-# App EC2 instance in private subnet
+# App EC2 instance in private subnet (COMMENTED OUT – REPLACED BY ASG)
 ########################################
+/*
 resource "aws_instance" "app" {
   ami                         = "ami-078182bbf5b33d14d" # Amazon Linux 2023 in eu-west-2
   instance_type               = var.app_instance_type
@@ -67,6 +72,7 @@ EOF
     Role        = "app"
   }
 }
+*/
 
 ########################################
 # App Auto Scaling Policy (CPU-based)
