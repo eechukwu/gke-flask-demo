@@ -304,16 +304,166 @@ journalctl -u nginx --since "1 hour ago"  # Recent logs
 
 ## SYSTEM DESIGN (QUICK PATTERNS)
 
-### Common Architectures
+### Common Architectures + Repo Structure
+
+#### 1. Web App
 ```
-Web App:        Route53 → CloudFront → ALB → ASG (EC2/ECS) → RDS + ElastiCache
-
-Event-Driven:   API GW → Lambda → SQS/SNS → Lambda → DynamoDB
-
-Data Pipeline:  Kinesis/Kafka → Lambda/EMR → S3 → Athena/Redshift
-
-Microservices:  API GW → ALB → ECS/EKS → Service Mesh (App Mesh) → RDS/DynamoDB
+Route53 → CloudFront → ALB → ASG (EC2/ECS) → RDS + ElastiCache
 ```
+**Repo Structure: Monorepo**
+```
+web-app/
+├── infra/                    # Terraform
+│   ├── modules/
+│   │   ├── vpc/
+│   │   ├── alb/
+│   │   ├── asg/
+│   │   └── rds/
+│   └── envs/
+│       ├── dev/
+│       └── prod/
+├── src/                      # Application code
+├── Dockerfile
+├── .github/workflows/
+│   ├── build.yml            # Build + test + push image
+│   ├── deploy-dev.yml       # Deploy to dev
+│   └── deploy-prod.yml      # Deploy to prod (with approval)
+└── README.md
+```
+**Why Monorepo:** Single app, infra tightly coupled, easier to manage.
+
+---
+
+#### 2. Event-Driven / Serverless
+```
+API GW → Lambda → SQS/SNS → Lambda → DynamoDB
+```
+**Repo Structure: Monorepo + SAM/Serverless Framework**
+```
+serverless-app/
+├── infra/                    # Terraform for shared infra
+│   ├── api-gateway/
+│   ├── dynamodb/
+│   └── sqs-sns/
+├── functions/                # Lambda functions
+│   ├── order-processor/
+│   │   ├── handler.py
+│   │   └── requirements.txt
+│   ├── notification-sender/
+│   └── data-transformer/
+├── template.yaml             # SAM template (or serverless.yml)
+├── .github/workflows/
+│   └── deploy.yml           # sam build && sam deploy
+└── README.md
+```
+**Why Monorepo:** Functions often share code/libs, deploy together, easier testing.
+
+---
+
+#### 3. Data Pipeline
+```
+Kinesis/Kafka → Lambda/EMR → S3 → Athena/Redshift
+```
+**Repo Structure: Monorepo with clear separation**
+```
+data-platform/
+├── infra/                    # Terraform
+│   ├── kinesis/
+│   ├── s3-buckets/
+│   ├── emr/
+│   ├── glue/
+│   └── redshift/
+├── ingestion/                # Data ingestion code
+│   ├── kinesis-producer/
+│   └── kafka-connectors/
+├── processing/               # ETL/ELT jobs
+│   ├── spark-jobs/
+│   ├── glue-scripts/
+│   └── lambda-transforms/
+├── analytics/                # SQL, dashboards
+│   ├── athena-queries/
+│   └── redshift-views/
+├── .github/workflows/
+│   ├── deploy-infra.yml
+│   └── deploy-jobs.yml
+└── README.md
+```
+**Why Monorepo:** Data pipelines are interdependent, schema changes affect multiple stages.
+
+---
+
+#### 4. Microservices
+```
+API GW → ALB → ECS/EKS → Service Mesh (App Mesh) → RDS/DynamoDB
+```
+**Repo Structure: Polyrepo (separate repo per service)**
+```
+# Organization level
+org/
+├── platform-infra/           # Shared infra (VPC, EKS, RDS)
+│   ├── terraform/
+│   └── .github/workflows/
+│
+├── user-service/             # Each service = own repo
+│   ├── src/
+│   ├── Dockerfile
+│   ├── k8s/
+│   │   ├── deployment.yaml
+│   │   ├── service.yaml
+│   │   └── hpa.yaml
+│   ├── .github/workflows/
+│   │   └── build-deploy.yml
+│   └── README.md
+│
+├── order-service/
+│   └── ... (same structure)
+│
+├── payment-service/
+│   └── ... (same structure)
+│
+└── shared-libs/              # Shared libraries (optional)
+    ├── auth-lib/
+    └── logging-lib/
+```
+**Why Polyrepo:** 
+- Independent deployments (team autonomy)
+- Different release cycles
+- Blast radius isolation
+- Clear ownership
+
+**Alternative: Monorepo for Microservices** (works for smaller teams)
+```
+microservices-monorepo/
+├── services/
+│   ├── user-service/
+│   ├── order-service/
+│   └── payment-service/
+├── libs/                     # Shared code
+├── infra/
+├── k8s/                      # All K8s manifests
+│   ├── base/
+│   └── overlays/
+│       ├── dev/
+│       └── prod/
+└── .github/workflows/
+    └── ci.yml               # Build only changed services
+```
+
+---
+
+### Repo Strategy Decision Matrix
+
+| Factor | Monorepo | Polyrepo |
+|--------|----------|----------|
+| **Team size** | Small-medium (<20 devs) | Large (20+ devs) |
+| **Deploy frequency** | Deploy together | Independent releases |
+| **Code sharing** | Lots of shared code | Minimal sharing |
+| **Ownership** | Shared/overlapping | Clear team boundaries |
+| **CI/CD complexity** | Simpler (one pipeline) | More pipelines, more flexible |
+| **Examples** | Google, Meta, Uber | Netflix, Amazon, Spotify |
+
+### Quick Answer for Interview
+> "For microservices, I prefer **polyrepo** - each service has its own repo, CI/CD, and team ownership. Shared infra lives in a platform repo. This gives teams autonomy and isolates blast radius. For smaller teams or tightly coupled apps, **monorepo** with path-based CI triggers works well."
 
 ### Scaling Strategies
 | Problem | Solution |
