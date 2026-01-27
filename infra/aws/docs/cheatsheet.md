@@ -1,5 +1,3 @@
-
-```markdown
 # Senior DevOps/Cloud Engineer - Interview Cheat Sheet 📋
 
 ---
@@ -905,6 +903,3 @@ Result: Quantified outcome
 **Remember:** It's OK to say *"I don't know, but here's how I'd figure it out..."* - shows problem-solving > memorization.
 
 **Good luck! 🚀**
-```
-
-Save this as your cheat sheet!
