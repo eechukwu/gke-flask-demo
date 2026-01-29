@@ -1,4 +1,4 @@
-# Senior DevOps/Cloud Engineer - Interview Cheat Sheet 📋
+# Senior DevOps/Cloud Engineer - Interview Cheat Sheet 
 
 ---
 
