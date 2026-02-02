@@ -21,6 +21,7 @@
 - [Day 12: Troubleshooting Control Plane](#day-12-troubleshooting-control-plane)
 - [Day 13: Troubleshooting Networking](#day-13-troubleshooting-networking)
 - [Day 14: Advanced Scenarios](#day-14-advanced-scenarios)
+- [Deep Interview Questions](#deep-interview-questions)
 
 **Total Time:** ~18 hours (practice at your own pace)
 
@@ -38,6 +39,7 @@
 ### Option 1: kubeadm (Recommended - Production-Like)
 
 #### Step 1: Create VMs with Vagrant
+
 ```bash
 # Install Vagrant and VirtualBox (Ubuntu/Debian)
 sudo apt-get install vagrant virtualbox
@@ -74,6 +76,7 @@ vagrant ssh master
 ```
 
 #### Step 2: Install Kubernetes (Run on ALL nodes)
+
 ```bash
 sudo su -
 
@@ -119,6 +122,7 @@ apt-mark hold kubelet kubeadm kubectl
 ```
 
 #### Step 3: Initialize Master Node
+
 ```bash
 # On master node only
 kubeadm init --apiserver-advertise-address=192.168.56.10 --pod-network-cidr=10.244.0.0/16
@@ -133,6 +137,7 @@ kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/
 ```
 
 #### Step 4: Join Worker Nodes
+
 ```bash
 # On each worker, run the join command from master output:
 sudo kubeadm join 192.168.56.10:6443 --token <token> \
@@ -140,6 +145,7 @@ sudo kubeadm join 192.168.56.10:6443 --token <token> \
 ```
 
 #### Verify Setup
+
 ```bash
 kubectl get nodes
 # Should show: master + 2 workers in Ready state
@@ -148,6 +154,7 @@ kubectl get nodes
 ---
 
 ### Option 2: kind (Faster Setup)
+
 ```bash
 # Install kind
 curl -Lo ./kind https://kind.sigs.k8s.io/dl/v0.20.0/kind-linux-amd64
@@ -180,6 +187,7 @@ kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.26.1/
 - See how components communicate
 
 ### Exercise 1.1: Explore Control Plane
+
 ```bash
 # List control plane pods
 kubectl get pods -n kube-system
@@ -194,6 +202,7 @@ kubectl describe pod -n kube-system kube-apiserver-<name>
 3. What command does scheduler use?
 
 ### Exercise 1.2: Component Logs
+
 ```bash
 # View API server logs
 kubectl logs -n kube-system kube-apiserver-<name> | head -50
@@ -206,6 +215,7 @@ kubectl create deployment nginx --image=nginx --replicas=3
 ```
 
 ### Exercise 1.3: Component Communication
+
 ```bash
 # Check API endpoint
 kubectl cluster-info
@@ -218,6 +228,7 @@ sudo ls -la /etc/kubernetes/pki/
 ```
 
 ### Exercise 1.4: Simulate Failure
+
 ```bash
 # Create test deployment
 kubectl create deployment test --image=nginx --replicas=3
@@ -248,6 +259,7 @@ sudo systemctl start kube-scheduler
 - Learn etcd operations
 
 ### Exercise 2.1: Access etcd
+
 ```bash
 # Create alias for easier access
 alias etcdctl='sudo ETCDCTL_API=3 etcdctl --endpoints=https://127.0.0.1:2379 \
@@ -260,6 +272,7 @@ etcdctl member list
 ```
 
 ### Exercise 2.2: Explore Data
+
 ```bash
 # List all keys
 etcdctl get / --prefix --keys-only | head -20
@@ -272,12 +285,14 @@ etcdctl get / --prefix --keys-only | wc -l
 ```
 
 **📝 Task:** Create a ConfigMap and find it in etcd
+
 ```bash
 kubectl create configmap test --from-literal=key=value
 etcdctl get /registry/configmaps/default/test
 ```
 
 ### Exercise 2.3: Backup
+
 ```bash
 # Take snapshot
 etcdctl snapshot save /tmp/backup-$(date +%Y%m%d).db
@@ -287,6 +302,7 @@ etcdctl snapshot status /tmp/backup-$(date +%Y%m%d).db
 ```
 
 ### Exercise 2.4: Restore (⚠️ DESTRUCTIVE!)
+
 ```bash
 # Create test namespace
 kubectl create namespace test-restore
@@ -321,6 +337,7 @@ kubectl get namespace test-restore
 - Explore packet flow
 
 ### Exercise 3.1: Identify Networks
+
 ```bash
 # 1. Node network
 kubectl get nodes -o wide
@@ -341,6 +358,7 @@ kubectl cluster-info dump | grep -E 'cluster-cidr|service-cluster-ip-range'
 - Service: ___________
 
 ### Exercise 3.2: Pod-to-Pod Communication
+
 ```bash
 # Create test pods
 kubectl run pod1 --image=nicolaka/netshoot -- sleep 3600
@@ -360,6 +378,7 @@ kubectl exec pod1 -- traceroute <pod2-ip>
 3. Hops to reach pod2?
 
 ### Exercise 3.3: CNI Configuration
+
 ```bash
 # On node - check CNI
 ls /etc/cni/net.d/
@@ -384,6 +403,7 @@ kubectl get ippool -o yaml
 - Learn service types
 
 ### Exercise 4.1: How Services Work
+
 ```bash
 # Create deployment + service
 kubectl create deployment web --image=nginx --replicas=3
@@ -398,6 +418,7 @@ kubectl run test --image=busybox -it --rm -- wget -O- web
 ```
 
 ### Exercise 4.2: kube-proxy
+
 ```bash
 # Check kube-proxy mode
 kubectl logs -n kube-system <kube-proxy-pod> | grep "Using"
@@ -467,6 +488,7 @@ kubectl run test --image=busybox -it --rm -- nslookup nginx-headless
 - Practice isolation
 
 ### Exercise 5.1: CoreDNS
+
 ```bash
 # Check CoreDNS
 kubectl get pods -n kube-system -l k8s-app=kube-dns
@@ -477,6 +499,7 @@ kubectl run test --image=busybox -it --rm -- nslookup kubernetes.default
 ```
 
 ### Exercise 5.2: Network Policies
+
 ```bash
 # Create namespace
 kubectl create namespace netpol-test
@@ -518,6 +541,7 @@ kubectl exec -n netpol-test frontend -- wget -O- backend --timeout=5
 - Manage resources
 
 ### Exercise 6.1: Node Selectors
+
 ```bash
 # Label nodes
 kubectl label nodes <worker1> disktype=ssd
@@ -551,6 +575,7 @@ kubectl get pods -l app=ssd-only -o wide
 ```
 
 ### Exercise 6.2: QoS Classes
+
 ```bash
 # Guaranteed (requests = limits)
 cat <<EOF | kubectl apply -f -
@@ -585,6 +610,7 @@ kubectl describe pod guaranteed | grep "QoS Class"
 - Work with Storage Classes
 
 ### Exercise 7.1: Manual PV/PVC
+
 ```bash
 # Create PV
 cat <<EOF | kubectl apply -f -
@@ -631,6 +657,7 @@ kubectl get pv,pvc
 - Practice least privilege
 
 ### Exercise 8.1: Service Account + Role
+
 ```bash
 # Create SA
 kubectl create serviceaccount pod-reader
@@ -682,6 +709,7 @@ kubectl auth can-i get pods --namespace=rbac-test \
 - Check certificate expiration
 
 ### Exercise 9.1: PKI Exploration
+
 ```bash
 # On master
 sudo ls -lR /etc/kubernetes/pki/
@@ -691,6 +719,7 @@ sudo openssl x509 -in /etc/kubernetes/pki/apiserver.crt -text -noout
 ```
 
 ### Exercise 9.2: Certificate Expiration
+
 ```bash
 # Check expiration
 sudo kubeadm certs check-expiration
@@ -713,6 +742,7 @@ sudo systemctl restart kubelet
 - Upgrade worker nodes
 
 ### Exercise 10.1: Upgrade Master
+
 ```bash
 # Backup etcd first!
 etcdctl snapshot save /tmp/pre-upgrade.db
@@ -736,6 +766,7 @@ sudo systemctl restart kubelet
 ```
 
 ### Exercise 10.2: Upgrade Worker
+
 ```bash
 # On master - drain node
 kubectl drain <worker> --ignore-daemonsets
@@ -759,6 +790,7 @@ kubectl uncordon <worker>
 - Practice restore
 
 ### Exercise 11.1: Backup Script
+
 ```bash
 cat > /usr/local/bin/etcd-backup.sh <<'EOF'
 #!/bin/bash
@@ -778,6 +810,7 @@ chmod +x /usr/local/bin/etcd-backup.sh
 ```
 
 ### Exercise 11.2: Automate with Cron
+
 ```bash
 # Daily at 2 AM
 sudo crontab -e
@@ -796,6 +829,7 @@ sudo crontab -e
 - Troubleshoot scheduler
 
 ### Exercise 12.1: API Server Down
+
 ```bash
 # Simulate
 sudo systemctl stop kube-apiserver
@@ -810,6 +844,7 @@ sudo systemctl start kube-apiserver
 ```
 
 ### Exercise 12.2: Debug Checklist
+
 ```bash
 cat > /usr/local/bin/k8s-debug.sh <<'EOF'
 #!/bin/bash
@@ -834,6 +869,7 @@ chmod +x /usr/local/bin/k8s-debug.sh
 - Troubleshoot CNI
 
 ### Exercise 13.1: Service Not Working
+
 ```bash
 # Create service
 kubectl create deployment web --image=nginx --replicas=3
@@ -849,6 +885,7 @@ kubectl logs -n kube-system <kube-proxy-pod>
 ```
 
 ### Exercise 13.2: DNS Issues
+
 ```bash
 # Test
 kubectl run test --image=busybox -it --rm -- nslookup kubernetes.default
@@ -880,6 +917,7 @@ Set up and troubleshoot:
 4. Recover and document
 
 ### Create Runbooks
+
 ```bash
 cat > runbook-api-down.md <<EOF
 # Runbook: API Server Down
@@ -909,32 +947,389 @@ EOF
 
 ---
 
-## Final Assessment
+## Deep Interview Questions
 
-**Questions to Answer:**
+### Architecture & Components (Advanced)
 
-1. Explain packet flow: pod1 → pod2 (different nodes)
-2. What happens: `kubectl apply -f deployment.yaml`?
-3. How to upgrade 1.27 → 1.28 with zero downtime?
-4. Complete etcd restore procedure?
-5. Multi-tenant isolation strategy?
+**Q1: Explain the complete flow when you run `kubectl apply -f deployment.yaml`. Include every component involved.**
+
+<details>
+<summary>Click to see detailed answer</summary>
+
+**Complete Flow:**
+
+1. **kubectl → API Server**
+   - kubectl reads kubeconfig, gets API server endpoint + auth credentials
+   - Performs client-side validation of YAML
+   - Sends HTTP POST to API server (`/apis/apps/v1/namespaces/default/deployments`)
+
+2. **API Server Processing**
+   - Authentication: Validates client certificate/token
+   - Authorization: Checks RBAC (can this user create deployments?)
+   - Admission Controllers: 
+     - Mutating: May modify the deployment (inject sidecars, set defaults)
+     - Validating: Ensures deployment meets policies (resource quotas, pod security)
+   - Validation: Schema validation against OpenAPI spec
+   - Writes to etcd at `/registry/deployments/default/<deployment-name>`
+   - Returns success to kubectl
+
+3. **Controller Manager Detects Change**
+   - Deployment Controller watches API server for Deployment objects
+   - Sees new Deployment via watch mechanism (long-lived HTTP connection)
+   - Calculates desired state: needs to create a ReplicaSet
+   - Creates ReplicaSet object via API server
+
+4. **ReplicaSet Controller Reacts**
+   - ReplicaSet Controller watches for ReplicaSet objects
+   - Sees new ReplicaSet, calculates: need to create N Pods
+   - Creates N Pod objects (with `nodeName=""`) via API server
+
+5. **Scheduler Detects Unscheduled Pods**
+   - Scheduler watches for Pods where `nodeName=""` (unscheduled)
+   - For each pod:
+     - **Filtering:** Eliminates nodes (insufficient resources, taints, node selectors)
+     - **Scoring:** Ranks remaining nodes (spread, resource utilization)
+     - **Binding:** Updates Pod object with `nodeName=<chosen-node>` via API server
+
+6. **Kubelet Detects Pod Assignment**
+   - Kubelet on assigned node watches API server for pods scheduled to it
+   - Sees new Pod assigned to its node
+   - Pulls container image (if not cached)
+   - Calls CRI (containerd): Creates containers
+   - Calls CNI plugin: Sets up pod networking (veth pair, IP allocation, routes)
+   - Starts containers
+   - Monitors liveness/readiness probes
+   - Reports pod status back to API server
+
+7. **Service/Endpoints Controller (if Service exists)**
+   - Watches Pods with labels matching Service selector
+   - Updates Endpoints object with new Pod IPs
+   - kube-proxy watches Endpoints, updates iptables/ipvs rules
+
+**Key Points:**
+- API server is the only component that talks to etcd
+- All other components watch API server (never talk directly to each other)
+- Everything is event-driven via watch mechanisms
+- Each controller maintains its own reconciliation loop
+
+</details>
 
 ---
 
-## Next Steps
+**Q2: Why is etcd's quorum (N/2)+1? Why can't you run a 2-node etcd cluster?**
 
-**Certifications:**
-- CKA (Certified Kubernetes Administrator)
-- CKAD (Certified Kubernetes Application Developer)
-- CKS (Certified Kubernetes Security Specialist)
+<details>
+<summary>Click to see detailed answer</summary>
 
-**Resources:**
-- [Kubernetes Docs](https://kubernetes.io/docs/)
-- [K8s The Hard Way](https://github.com/kelseyhightower/kubernetes-the-hard-way)
+**Raft Consensus & Split-Brain Problem:**
+
+**Why (N/2)+1?**
+- Raft consensus algorithm requires majority agreement for writes
+- Prevents split-brain: two parts of cluster thinking they're both primary
+- Formula: `quorum = floor(N/2) + 1`
+
+**Examples:**
+- 1 node: quorum=1, can lose 0 nodes ❌ (no HA)
+- 2 nodes: quorum=2, can lose 0 nodes ❌ (worse than 1!)
+- 3 nodes: quorum=2, can lose 1 node ✅
+- 4 nodes: quorum=3, can lose 1 node (same as 3, wastes resources!)
+- 5 nodes: quorum=3, can lose 2 nodes ✅
+- 6 nodes: quorum=4, can lose 2 nodes (same as 5, wastes resources!)
+
+**Why NOT 2 nodes?**
+Network partition scenario:
+```
+Node A  ←—network partition—→  Node B
+   ↓                              ↓
+Client writes "X=1"         Client writes "X=2"
+```
+
+With 2 nodes:
+- Both need each other for quorum (2/2)
+- If network partitions, NEITHER can accept writes (total failure)
+- Worse than single node (which at least works)
+
+With 3 nodes:
+```
+Node A ←—partition—→ Node B + Node C
+   ↓                        ↓
+Isolated              Has quorum (2/3)
+Can't write ✅        Can write ✅
+```
+
+**Production Recommendation:**
+- **3 nodes**: Most common, good balance
+- **5 nodes**: If you need to survive 2 failures
+- **7 nodes**: Rarely needed, high write latency
+
+**Interview Gold:** "Even numbers don't improve fault tolerance vs. odd-1, so always use odd numbers: 3, 5, or 7."
+
+</details>
+
+---
+
+**Q3: The API server goes down. What still works? What breaks?**
+
+<details>
+<summary>Click to see detailed answer</summary>
+
+**What Still Works:**
+
+1. **Existing Pods Keep Running**
+   - Containers continue running on nodes
+   - Kubelet doesn't need API server for running containers
+   - Applications serve traffic normally
+
+2. **Pod-to-Pod Networking**
+   - CNI networking already configured
+   - iptables/ipvs rules already in place
+   - Services continue to work (kube-proxy rules cached)
+
+3. **Liveness/Readiness Probes**
+   - Kubelet runs probes locally
+   - Will restart failed containers
+   - However, can't update Pod status in API
+
+4. **DNS (CoreDNS)**
+   - CoreDNS pods keep running
+   - DNS queries continue to work
+   - Using cached Service data
+
+**What Breaks:**
+
+1. **kubectl Commands**
+   - All kubectl commands fail (can't reach API)
+   - `kubectl get`, `kubectl logs`, `kubectl exec` all fail
+
+2. **New Pod Scheduling**
+   - No new pods can be scheduled
+   - Scheduler can't assign nodes
+   - Deployments can't scale
+
+3. **Controllers Stop Working**
+   - ReplicaSets won't create replacement pods
+   - Failed pods won't be replaced
+   - Deployments won't reconcile
+   - Auto-scaling doesn't work
+
+4. **Status Updates Blocked**
+   - Kubelet can't report pod status
+   - Metrics not updated
+   - Events not recorded
+
+5. **New Service/Endpoint Updates**
+   - kube-proxy can't learn about new services
+   - New pods won't be added to endpoints
+   - Service routing stale
+
+**Recovery Priority:**
+1. Restore API server ASAP
+2. Check etcd (API server dependency)
+3. Check certificates (common failure)
+4. Check logs: `journalctl -u kube-apiserver`
+
+**Interview Insight:** "The cluster continues serving traffic, but can't adapt to changes. This is why multi-master HA is critical."
+
+</details>
+
+---
+
+### Networking Deep Dive
+
+**Q4: Trace a packet from pod1 (10.244.1.5) on node1 to pod2 (10.244.2.10) on node2 using Calico. Include every hop.**
+
+<details>
+<summary>Click to see detailed answer</summary>
+
+**Complete Packet Journey:**
+
+**Step 1: Pod1 Container Network Stack**
+```
+Application sends packet: 10.244.1.5 → 10.244.2.10
+↓
+eth0 in pod (actually veth pair endpoint)
+```
+
+**Step 2: Pod's Network Namespace → Host**
+```
+veth pair: pod's eth0 ←→ host's caliXXXX interface
+Packet traverses veth pair to host network namespace
+```
+
+**Step 3: Host (Node1) Routing**
+```bash
+# On node1, kernel checks routing table
+ip route show
+# Shows: 10.244.2.0/24 via 192.168.56.11 dev eth0
+
+Packet sent to node2's IP (192.168.56.11) via eth0
+```
+
+**Step 4: Calico Encapsulation (if IP-in-IP mode)**
+```
+Original packet: [IP: 10.244.1.5 → 10.244.2.10] [TCP/Data]
+                          ↓
+Encapsulated:    [IP: 192.168.56.10 → 192.168.56.11] 
+                 [IP: 10.244.1.5 → 10.244.2.10] [TCP/Data]
+```
+
+**Step 5: Physical Network**
+```
+Packet travels through physical/VM network
+192.168.56.10 (node1) → 192.168.56.11 (node2)
+```
+
+**Step 6: Node2 Receives & Decapsulates**
+```
+Node2 kernel receives encapsulated packet
+Calico IPIP module decapsulates
+Extracts: [IP: 10.244.1.5 → 10.244.2.10] [TCP/Data]
+```
+
+**Step 7: Node2 Routing to Pod2**
+```bash
+# Kernel checks routing table
+ip route show
+# Shows: 10.244.2.10 dev caliYYYY
+
+Routes packet to caliYYYY (veth pair to pod2)
+```
+
+**Step 8: veth Pair to Pod2**
+```
+Packet traverses veth pair: host's caliYYYY → pod2's eth0
+Pod2 application receives packet
+```
+
+**Calico Modes Compared:**
+
+| Mode | Encapsulation | Overhead | Use Case |
+|------|---------------|----------|----------|
+| **IP-in-IP** | Yes | ~20 bytes | Cross-subnet (default) |
+| **VXLAN** | Yes | ~50 bytes | Requires L3 |
+| **BGP (no encap)** | No | 0 bytes | Full L3 routing |
+
+**Key Points for Interview:**
+- veth pairs connect pod to host
+- Routing table determines next hop
+- Encapsulation preserves pod IPs across nodes
+- Calico uses BGP for route distribution
+- kube-proxy doesn't touch pod-to-pod traffic
+
+</details>
+
+---
+
+**Q5: kube-proxy has three modes: iptables, ipvs, and eBPF (Cilium). Explain each and when to use them.**
+
+<details>
+<summary>Click to see detailed answer</summary>
+
+### 1. iptables Mode (Default)
+
+**How It Works:**
+```bash
+# For each Service, creates iptables chain
+-A KUBE-SERVICES -d 10.96.0.100/32 -p tcp --dport 80 -j KUBE-SVC-XXX
+
+# Random load balancing to endpoints
+-A KUBE-SVC-XXX -m statistic --mode random --probability 0.33 -j KUBE-SEP-POD1
+-A KUBE-SVC-XXX -m statistic --mode random --probability 0.50 -j KUBE-SEP-POD2
+-A KUBE-SVC-XXX -j KUBE-SEP-POD3
+```
+
+**Pros:**
+- Default, well-tested
+- Works everywhere
+
+**Cons:**
+- O(n) lookup time
+- Doesn't scale >5000 services
+- No real load balancing (just random)
+
+---
+
+### 2. IPVS Mode
+
+**How It Works:**
+- Uses Linux kernel's IPVS
+- Hash table lookups O(1)
+- Real load balancing algorithms
+
+**Load Balancing Algorithms:**
+- `rr` - Round Robin
+- `lc` - Least Connection
+- `dh` - Destination Hashing
+
+**Pros:**
+- O(1) lookup time (fast!)
+- Scales to 10,000+ services
+- Real LB algorithms
+
+**Cons:**
+- Requires kernel modules
+- More complex troubleshooting
+
+---
+
+### 3. eBPF Mode (Cilium)
+
+**How It Works:**
+- Uses eBPF programs
+- Packet processing in kernel
+- Bypasses iptables entirely
+
+**Pros:**
+- Fastest (kernel fast path)
+- Scales infinitely
+- Advanced features (L7 policies)
+
+**Cons:**
+- Requires kernel 4.9.17+
+- Complex setup
+
+---
+
+### Comparison Table
+
+| Feature | iptables | IPVS | eBPF |
+|---------|----------|------|------|
+| **Max Services** | ~5,000 | ~50,000 | Unlimited |
+| **Lookup Speed** | O(n) | O(1) | O(1) |
+| **CPU Usage** | High | Medium | Low |
+
+---
+
+### When to Use Each
+
+**Use iptables:**
+- Small clusters (<100 services)
+- Default setup
+
+**Use IPVS:**
+- Medium to large clusters (100-10,000 services)
+- Need better load balancing
+
+**Use eBPF (Cilium):**
+- Large scale (1,000+ services)
+- Need L7 policies
+- Modern kernel available
+
+**Interview Gold:** "IPVS is the sweet spot for production clusters. eBPF is cutting-edge but requires modern kernel."
+
+</details>
+
+---
+
+### Additional Resources
+
+- [Kubernetes Official Docs](https://kubernetes.io/docs/)
+- [Kubernetes The Hard Way](https://github.com/kelseyhightower/kubernetes-the-hard-way)
+- [CKA Exam Curriculum](https://github.com/cncf/curriculum)
 - [kubectl Cheat Sheet](https://kubernetes.io/docs/reference/kubectl/cheatsheet/)
 
 ---
 
-**Good luck! 🚀**
+**Good luck with your interview! 🚀**
 
-> Remember: Understanding > Memorization
+> Remember: It's not about memorizing—it's about understanding the *why* behind each decision. Practice these scenarios until you can explain them in your sleep.
