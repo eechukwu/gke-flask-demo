@@ -1,1 +1,29 @@
-flask==3.0.0
+Here you go:
+
+---
+
+How I added manual approval steps to AFT pipelines:
+
+AFT uses CodeBuild to run each pipeline stage, and each stage has a buildspec file that tells it what to do.
+
+By default, the buildspec just runs terraform apply straight away. I changed it to use a MODE variable:
+
+- MODE = PLAN → only runs terraform plan (shows what will change)
+- MODE = APPLY → runs terraform apply (makes the change)
+
+So instead of one stage that applies everything, I split it into:
+
+1. Plan stage (MODE = PLAN) → shows the changes
+2. Manual approval → someone reviews and clicks approve in CodePipeline
+3. Apply stage (MODE = APPLY) → applies the changes
+
+I did this for both the global customisations and account customisations pipelines.
+
+To make this work, I had to:
+- Fork the aws-aft-core-framework repo
+- Add the MODE logic to the buildspec
+- Update the SSM parameter to point to my forked repo instead of the default AWS one
+
+That last bit is important — if SSM still points to the AWS repo, the pipelines use the default buildspec which doesn't have any plan or approval steps.
+
+---
